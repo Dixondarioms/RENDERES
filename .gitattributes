@@ -1,0 +1,9 @@
+# Archivos 3D grandes van por Git LFS (GitHub no acepta archivos de más de 100 MB en git normal)
+*.glb filter=lfs diff=lfs merge=lfs -text
+*.bin filter=lfs diff=lfs merge=lfs -text
+*.fbx filter=lfs diff=lfs merge=lfs -text
+*.hdr filter=lfs diff=lfs merge=lfs -text
+*.blend filter=lfs diff=lfs merge=lfs -text
+
+# Los .bat de Windows necesitan fin de linea CRLF
+*.bat text eol=crlf

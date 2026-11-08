@@ -1,0 +1,15 @@
+# Escena de Blender: se vuelve a armar con Armar_escena.bat (pesa más de 500 MB)
+blender/feria.blend
+*.blend1
+blender/_prueba_cielo.exr
+
+# Imágenes generadas (se rehacen con Armar_escena.bat y Renderizar.bat)
+blender/renders/
+
+# Restos de descargas y archivos de prueba
+__MACOSX/
+*.zip
+*_peq.png
+assets/aeronaves/tucano/texturas/UV.pdf
+__pycache__/
+*.tmp
