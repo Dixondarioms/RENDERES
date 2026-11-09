@@ -1,7 +1,8 @@
 Recursos usados en el render (todos gratuitos y de uso libre)
 
 - Texturas de concreto, asfalto, grama, tierra, lámina, piso y friso: Poly Haven (polyhaven.com), licencia CC0.
-- Cielo con nubes "Kloofendal 48d Partly Cloudy (Pure Sky)": Poly Haven, licencia CC0.
+- Cielo con nubes "Kloofendal 48d Partly Cloudy (Pure Sky)": Poly Haven, licencia CC0 (2k para la luz y 8k,
+  convertido a EXR comprimido, para el fondo: assets/cielo/cielo_8k_fondo.exr).
 - Generador de árboles EZ-Tree (Daniel Greenheck): licencia MIT (ver assets/lib/EZ-TREE_LICENSE.txt).
 - Personas cercanas a la cámara: modelos "Soldier" y "Michelle" (personajes Mixamo) incluidos en los ejemplos de three.js.
 - Conos de seguridad: Car Kit de Kenney (kenney.nl), licencia CC0.
@@ -11,4 +12,10 @@ Recursos usados en el render (todos gratuitos y de uso libre)
 - Avión EMB-312 Tucano (T-27): modelo gratuito de pjedvaj en CGTrader, licencia Royalty Free (uso personal y comercial).
 - Árboles island_tree_01 y tree_small_02: Poly Haven, licencia CC0.
 - Avión Lockheed C-130 Hercules: modelo de Dave Love (sketchfab.com/Tyler_Dave) en Sketchfab, licencia CC-BY 4.0 (exige mencionar al autor).
+- Stands de los proyectos (material suministrado por el usuario): cuadros del video "Simulador MANPADS Igla-S"
+  (DIDA), capturas del software Cóndor, imágenes del resumen ejecutivo del ULV (DIDA/AMB) y el modelo 3D del
+  lanzador 9K310 Igla-1 (archivo 9k310-igla-1-sa-16-1, Igla.obj; verificar su licencia antes de publicar).
 - Avioneta Diamond DA40: modelo de helijah (sketchfab.com/helijah) en Sketchfab, licencia CC-BY 4.0 (exige mencionar al autor).
+- Personas de la parada y autoridades: modelos 3D suministrados por el usuario ("soldier_full_tactical_gear" y
+  "captain", descargados de Sketchfab; verificar autor y licencia antes de publicar). El uniforme del soldado se
+  repinta con pixelado verde y el capitán se sienta por código.

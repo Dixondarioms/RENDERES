@@ -130,6 +130,59 @@ mejor = min(candidatos, key=prueba_giro)
 mapeo.inputs['Rotation'].default_value = (0, 0, mejor)
 print('Giro del cielo:', round(math.degrees(mejor), 1), 'grados')
 
+
+# ---------------------------------------------------------------- sol físico: se saca del HDR y se pasa a la lámpara
+# El HDR de Poly Haven trae el sol sin recortar (≈75 000 en 8k). Con la lámpara encima había DOS soles.
+# Se mide la irradiancia del disco solar del HDR, se le da esa misma fuerza y color a la lámpara y se borra
+# el sol del HDR de iluminación. Así la relación sol/cielo (lo oscuras y azules que salen las sombras) es la real.
+def separar_sol(img):
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32); img.pixels.foreach_get(px)
+    p = px.reshape(h, w, 4)
+    lum = p[..., :3] @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+    umbral = max(40.0, float(np.percentile(lum, 99.9)) * 4)
+    sol_px = lum > umbral
+    filas = np.nonzero(sol_px)[0]
+    lat = (filas + 0.5) / h * math.pi - math.pi / 2            # filas de Blender van de abajo (−90°) hacia arriba
+    omega = (2 * math.pi / w) * (math.pi / h) * np.cos(lat)    # ángulo sólido de cada píxel
+    E = (p[..., :3][sol_px] * omega[:, None]).sum(axis=0)      # irradiancia del sol (W/m², RGB)
+    # se reemplaza el disco por el cielo de alrededor (anillo justo afuera del umbral)
+    yy, xx = np.nonzero(sol_px)
+    cy, cx = int(yy.mean()), int(xx.mean()); r = int(max(np.ptp(yy), np.ptp(xx)) / 2) + 3
+    anillo = p[max(0, cy - 2 * r):cy + 2 * r + 1, max(0, cx - 2 * r):cx + 2 * r + 1, :3].reshape(-1, 3)
+    al = anillo @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+    relleno = np.median(anillo[al < umbral], axis=0)
+    p[..., :3][sol_px] = relleno
+    limpio = bpy.data.images.new('Cielo iluminacion', w, h, float_buffer=True, alpha=False)
+    limpio.pixels.foreach_set(p.ravel())
+    ruta = os.path.join(DIR_B, '_cielo_iluminacion.exr')
+    limpio.filepath_raw = ruta; limpio.file_format = 'OPEN_EXR'; limpio.save()
+    limpio.source = 'FILE'; limpio.reload()
+    lum_E = float(E @ np.array([0.2126, 0.7152, 0.0722]))
+    print(f'Sol del HDR: {sol_px.sum()} px, irradiancia {lum_E:.1f} W/m², color {tuple(round(float(c / lum_E), 3) for c in E)}')
+    return limpio, lum_E, tuple(float(c / max(E)) for c in E)
+
+
+cielo_luz, irradiancia, color_sol = separar_sol(amb.image)
+amb.image = cielo_luz
+datos_sol.energy = irradiancia
+datos_sol.color = color_sol
+datos_sol.angle = math.radians(0.53)          # diámetro real del disco solar
+amb.interpolation = 'Smart'
+
+# Fondo de cámara: el mismo cielo en 8k (el 2k se ve borroso en la panorámica). Solo para rayos de cámara,
+# así no cambia la iluminación ni aparece un segundo sol en los reflejos.
+ruta_8k = os.path.join(RAIZ, 'assets', 'cielo', 'cielo_8k_fondo.exr')
+if os.path.exists(ruta_8k):
+    amb8 = nt.nodes.new('ShaderNodeTexEnvironment'); amb8.image = bpy.data.images.load(ruta_8k); amb8.interpolation = 'Smart'
+    nt.links.new(mapeo.outputs['Vector'], amb8.inputs['Vector'])
+    camino = nt.nodes.new('ShaderNodeLightPath')
+    mezcla_cielo = nt.nodes.new('ShaderNodeMix'); mezcla_cielo.data_type = 'RGBA'
+    nt.links.new(camino.outputs['Is Camera Ray'], mezcla_cielo.inputs['Factor'])
+    nt.links.new(amb.outputs['Color'], mezcla_cielo.inputs['A']); nt.links.new(amb8.outputs['Color'], mezcla_cielo.inputs['B'])
+    nt.links.new(mezcla_cielo.outputs['Result'], fondo.inputs['Color'])
+mundo.cycles.sampling_method = 'MANUAL'; mundo.cycles.sample_map_resolution = 2048
+
 # ---------------------------------------------------------------- cámaras de las vistas
 coleccion = bpy.data.collections.new('Camaras'); escena.collection.children.link(coleccion)
 for nombre, v in DATOS['vistas'].items():
@@ -141,107 +194,14 @@ for nombre, v in DATOS['vistas'].items():
     cam.rotation_euler = (mira - pos).to_track_quat('-Z', 'Y').to_euler()
 escena.camera = bpy.data.objects.get('Cam_hangar') or bpy.data.objects[0]
 
+# ---------------------------------------------------------------- realismo: terreno, bruma, vegetación, luces, cámara
+exec(open(os.path.join(RAIZ, 'herramientas', 'realismo_blender.py'), encoding='utf-8').read())
+exec(open(os.path.join(RAIZ, 'herramientas', 'acto_blender.py'), encoding='utf-8').read())
+aplicar_realismo()
+
 # ---------------------------------------------------------------- personas y sillas
-def lineal(hexa):
-    """Color sRGB '#rrggbb' -> RGBA lineal (para el color de objeto)."""
-    c = [int(hexa[i:i + 2], 16) / 255 for i in (1, 3, 5)]
-    return tuple(((v + 0.055) / 1.055) ** 2.4 if v > 0.04045 else v / 12.92 for v in c) + (1.0,)
-
-
-def nodo(nt, tipo, **kw):
-    n = nt.nodes.new(tipo)
-    for k, v in kw.items():
-        setattr(n, k, v)
-    return n
-
-
-def matematica(nt, op, a, b=None, clamp=False):
-    n = nodo(nt, 'ShaderNodeMath', operation=op, use_clamp=clamp)
-    for i, x in enumerate((a, b)):
-        if x is None:
-            continue
-        if isinstance(x, (int, float)):
-            n.inputs[i].default_value = x
-        else:
-            nt.links.new(x, n.inputs[i])
-    return n.outputs[0]
-
-
-def material_persona(m, tela):
-    """tela=True: la ropa toma el color del objeto (uniforme). tela=False: civil, se tiñe suave y se respeta la piel."""
-    nt = m.node_tree
-    bsdf = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
-    tex = bsdf.inputs['Base Color'].links[0].from_socket if bsdf.inputs['Base Color'].links else None
-    info = nodo(nt, 'ShaderNodeObjectInfo')
-    if tex is None:
-        nt.links.new(info.outputs['Color'], bsdf.inputs['Base Color']); return
-    if tela:
-        bw = nodo(nt, 'ShaderNodeRGBToBW'); nt.links.new(tex, bw.inputs['Color'])
-        f = matematica(nt, 'MULTIPLY_ADD', bw.outputs[0], 1.6); f.node.inputs[2].default_value = 0.4
-        mul = nodo(nt, 'ShaderNodeVectorMath', operation='SCALE')
-        nt.links.new(info.outputs['Color'], mul.inputs[0]); nt.links.new(f, mul.inputs['Scale'])
-        nt.links.new(mul.outputs[0], bsdf.inputs['Base Color'])
-    else:
-        sep = nodo(nt, 'ShaderNodeSeparateColor'); nt.links.new(tex, sep.inputs['Color'])
-        R, G, B = sep.outputs[0], sep.outputs[1], sep.outputs[2]
-        a = matematica(nt, 'MULTIPLY', matematica(nt, 'SUBTRACT', matematica(nt, 'SUBTRACT', R, G), 0.04), 20, clamp=True)
-        b = matematica(nt, 'MULTIPLY', matematica(nt, 'SUBTRACT', matematica(nt, 'SUBTRACT', G, B), 0.015), 28, clamp=True)
-        c = matematica(nt, 'SUBTRACT', 1.0, matematica(nt, 'MULTIPLY', matematica(nt, 'SUBTRACT', matematica(nt, 'SUBTRACT', R, B), 0.3), 10, clamp=True))
-        piel = matematica(nt, 'MULTIPLY', matematica(nt, 'MULTIPLY', a, b), c)
-        suave = nodo(nt, 'ShaderNodeMix', data_type='RGBA'); suave.inputs['Factor'].default_value = 0.55
-        nt.links.new(info.outputs['Color'], suave.inputs['A']); suave.inputs['B'].default_value = (1, 1, 1, 1)
-        teñido = nodo(nt, 'ShaderNodeMix', data_type='RGBA', blend_type='MULTIPLY'); teñido.inputs['Factor'].default_value = 1
-        nt.links.new(tex, teñido.inputs['A']); nt.links.new(suave.outputs['Result'], teñido.inputs['B'])
-        final = nodo(nt, 'ShaderNodeMix', data_type='RGBA'); nt.links.new(piel, final.inputs['Factor'])
-        nt.links.new(teñido.outputs['Result'], final.inputs['A']); nt.links.new(tex, final.inputs['B'])
-        nt.links.new(final.outputs['Result'], bsdf.inputs['Base Color'])
-
-
-ruta_pers = os.path.join(DIR_B, 'personas.json')
-if os.path.exists(ruta_pers):
-    PD = json.load(open(ruta_pers, encoding='utf-8'))
-    antes = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=os.path.join(DIR_B, 'personas_modelos.glb'))
-    modelos = {}
-    for ob in set(bpy.data.objects) - antes:
-        if ob.type == 'MESH' and ob.name.split('.')[0] in ('soldado', 'soldadoS', 'civil', 'civilS'):
-            modelos[ob.name.split('.')[0]] = ob.data
-            for ranura in ob.material_slots:
-                material_persona(ranura.material, ob.name.startswith('soldado'))
-        bpy.data.objects.remove(ob, do_unlink=True)
-    col_p = bpy.data.collections.new('Personas'); escena.collection.children.link(col_p)
-    for i, d in enumerate(PD['personas'] if '--personas' in ARGS else []):
-        civil = d['civ'] and d['s']
-        clave = ('civil' if civil else 'soldado') + ('S' if d['s'] else '')
-        ob = bpy.data.objects.new(f'Persona_{i:04d}', modelos[clave]); col_p.objects.link(ob)
-        ob.location = a_blender(d['p'])
-        ob.rotation_euler = (0, 0, math.atan2(-d['d'][1], d['d'][0]))
-        ob.color = lineal(d['c'])
-
-    # Silla plástica con respaldo (se tiñe con el color de cada una)
-    import bmesh
-    bm = bmesh.new()
-    def bloque(cx, cy, cz, sx, sy, sz):
-        r = bmesh.ops.create_cube(bm, size=1.0)
-        bmesh.ops.scale(bm, vec=(sx, sy, sz), verts=r['verts'])
-        bmesh.ops.translate(bm, vec=(cx, cy, cz), verts=r['verts'])
-    bloque(0, 0, 0.44, 0.44, 0.44, 0.04)                 # asiento
-    bloque(-0.2, 0, 0.68, 0.04, 0.44, 0.44)              # respaldo
-    for x in (-0.19, 0.19):
-        for y in (-0.19, 0.19):
-            bloque(x, y, 0.21, 0.03, 0.03, 0.42)         # patas
-    malla_silla = bpy.data.meshes.new('silla'); bm.to_mesh(malla_silla); bm.free()
-    ms = bpy.data.materials.new('silla'); ms.use_nodes = True
-    b = ms.node_tree.nodes['Principled BSDF']; b.inputs['Roughness'].default_value = 0.45
-    info = ms.node_tree.nodes.new('ShaderNodeObjectInfo'); ms.node_tree.links.new(info.outputs['Color'], b.inputs['Base Color'])
-    malla_silla.materials.append(ms)
-    col_s = bpy.data.collections.new('Sillas'); escena.collection.children.link(col_s)
-    for i, d in enumerate(PD['sillas']):
-        ob = bpy.data.objects.new(f'Silla_{i:04d}', malla_silla); col_s.objects.link(ob)
-        ob.location = a_blender(d['p'])
-        ob.rotation_euler = (0, 0, math.atan2(-d['d'][1], d['d'][0]))
-        ob.color = lineal(d['c'])
-    print('Personas:', len(PD['personas']), ' Sillas:', len(PD['sillas']))
+# La tribuna, las gradas, sus sillas y las personas del visor web se reemplazan en acto_blender.py
+# (tarima protocolar con toldo, autoridades sentadas y la parada con uniforme verde pixelado).
 
 # ---------------------------------------------------------------- render
 r = escena.render
@@ -249,17 +209,33 @@ r.engine = 'CYCLES'
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from usar_gpu import activar_gpu   # noqa: E402
 activar_gpu(escena)
-escena.cycles.samples = 256
-escena.cycles.use_adaptive_sampling = True
-escena.cycles.adaptive_threshold = 0.02
-escena.cycles.use_denoising = True
-escena.cycles.max_bounces = 6
-escena.cycles.transparent_max_bounces = 16
+c = escena.cycles
+c.samples = 512
+c.use_adaptive_sampling = True
+c.adaptive_threshold = 0.015
+c.use_denoising = True
+c.denoiser = 'OPENIMAGEDENOISE'
+c.denoising_input_passes = 'RGB_ALBEDO_NORMAL'
+c.denoising_prefilter = 'ACCURATE'
+c.max_bounces = 12
+c.diffuse_bounces = 5
+c.glossy_bounces = 6
+c.transmission_bounces = 10
+c.volume_bounces = 0
+c.transparent_max_bounces = 48           # hojas con recorte alfa: con pocos rebotes se ven manchas negras
+c.sample_clamp_indirect = 12             # quita "luciérnagas" sin apagar los reflejos
+c.blur_glossy = 0.5
+c.caustics_reflective = False
+c.caustics_refractive = False
+c.use_light_tree = True
+r.film_transparent = False
 r.resolution_x, r.resolution_y, r.resolution_percentage = 1920, 1080, 100
 r.image_settings.file_format = 'PNG'
+r.image_settings.color_depth = '16'
 escena.view_settings.view_transform = 'AgX'
 escena.view_settings.look = 'AgX - Medium High Contrast'
-escena.view_settings.exposure = -0.7
+escena.view_settings.exposure = EXPOSICION_BASE
+postproceso(escena)
 os.makedirs(os.path.join(DIR_B, 'renders'), exist_ok=True)
 r.filepath = os.path.join(DIR_B, 'renders', 'render_')
 
@@ -276,6 +252,7 @@ if '--previas' in ARGS:
         if not cam:
             continue
         escena.camera = cam
+        escena.view_settings.exposure = EXPOSICION_BASE + cam.get('exposicion', 0.0)
         r.filepath = os.path.join(DIR_B, 'renders', f'previa_{nombre}.png')
         bpy.ops.render.render(write_still=True)
         print('Previa', nombre, 'lista')

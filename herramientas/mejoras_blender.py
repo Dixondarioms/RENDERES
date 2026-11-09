@@ -90,16 +90,34 @@ def mat_concreto():
     lad.offset = 0.0; lad.squash = 1.0
     lad.inputs['Scale'].default_value = 1.0; lad.inputs['Brick Width'].default_value = 6.0; lad.inputs['Row Height'].default_value = 5.0
     lad.inputs['Mortar Size'].default_value = 0.025; lad.inputs['Mortar Smooth'].default_value = 0.4; lad.inputs['Bias'].default_value = 0.0
-    lad.inputs['Color1'].default_value = (0.47, 0.42, 0.32, 1); lad.inputs['Color2'].default_value = (0.58, 0.53, 0.42, 1)
-    lad.inputs['Mortar'].default_value = (0.24, 0.21, 0.17, 1)
+    # Concreto envejecido de aeródromo: albedo 0,25-0,35, gris (no crema). Con valores de 0,5 se veía como nieve.
+    lad.inputs['Color1'].default_value = (0.27, 0.265, 0.25, 1); lad.inputs['Color2'].default_value = (0.34, 0.33, 0.31, 1)
+    lad.inputs['Mortar'].default_value = (0.09, 0.085, 0.08, 1)        # juntas selladas con asfalto
     nt.links.new(mp.outputs['Vector'], lad.inputs['Vector'])
-    base = mezclar(nt, lad.outputs['Color'], t['col'], 0.35, 'MULTIPLY')
+    base = mezclar(nt, lad.outputs['Color'], t['col'], 0.45, 'MULTIPLY')
+    # tono propio de cada losa (vaciadas en días distintos)
+    losa = nt.nodes.new('ShaderNodeTexWhiteNoise'); losa.noise_dimensions = '2D'
+    piso_losa = nt.nodes.new('ShaderNodeVectorMath'); piso_losa.operation = 'SNAP'; piso_losa.inputs[1].default_value = (6.0, 5.0, 1.0)
+    nt.links.new(mp.outputs['Vector'], piso_losa.inputs[0]); nt.links.new(piso_losa.outputs[0], losa.inputs['Vector'])
+    base = mezclar(nt, base, rampa(nt, losa.outputs['Value'], [(0.0, (0.93, 0.93, 0.93, 1)), (1.0, (1.05, 1.045, 1.035, 1))]), 1.0, 'MULTIPLY')
     # zonas gastadas más claras y zonas más oscuras (grandes)
-    desgaste = rampa(nt, ruido(nt, coord, 0.012, 5), [(0.3, (0.86, 0.84, 0.8, 1)), (0.5, (1, 1, 1, 1)), (0.72, (1.15, 1.13, 1.08, 1))])
-    # manchas de aceite y suciedad
-    aceite = rampa(nt, ruido(nt, coord, 0.18, 12), [(0.58, (1, 1, 1, 1)), (0.72, (0.62, 0.58, 0.52, 1))])
-    polvo = rampa(nt, ruido(nt, coord, 2.5, 3), [(0.35, (0.94, 0.94, 0.94, 1)), (0.65, (1.04, 1.04, 1.04, 1))])
+    desgaste = rampa(nt, ruido(nt, coord, 0.012, 5), [(0.3, (0.8, 0.79, 0.77, 1)), (0.5, (1, 1, 1, 1)), (0.72, (1.12, 1.11, 1.08, 1))])
+    # manchas de aceite, caucho y escorrentía
+    aceite = rampa(nt, ruido(nt, coord, 0.18, 12), [(0.56, (1, 1, 1, 1)), (0.72, (0.5, 0.48, 0.45, 1))])
+    agua = rampa(nt, ruido(nt, coord, 0.045, 6), [(0.45, (1, 1, 1, 1)), (0.62, (0.78, 0.77, 0.74, 1))])
+    polvo = rampa(nt, ruido(nt, coord, 2.5, 3), [(0.35, (0.9, 0.9, 0.9, 1)), (0.65, (1.06, 1.06, 1.05, 1))])
     col = mezclar(nt, mezclar(nt, mezclar(nt, base, desgaste, 1.0, 'MULTIPLY'), aceite, 1.0, 'MULTIPLY'), polvo, 1.0, 'MULTIPLY')
+    col = mezclar(nt, col, agua, 1.0, 'MULTIPLY')
+    # grietas finas (como en las fotos): bordes de Voronoi deformados, solo en algunas zonas
+    cv = nt.nodes.new('ShaderNodeTexVoronoi'); cv.feature = 'DISTANCE_TO_EDGE'; cv.inputs['Scale'].default_value = 0.45
+    dg = nt.nodes.new('ShaderNodeTexNoise'); dg.inputs['Scale'].default_value = 0.8; dg.inputs['Detail'].default_value = 6
+    nt.links.new(coord, dg.inputs['Vector'])
+    dv = nt.nodes.new('ShaderNodeMix'); dv.data_type = 'VECTOR'; dv.inputs['Factor'].default_value = 0.35
+    nt.links.new(coord, dv.inputs['A']); nt.links.new(dg.outputs['Color'], dv.inputs['B'])
+    nt.links.new(dv.outputs['Result'], cv.inputs['Vector'])
+    grieta = rampa(nt, cv.outputs['Distance'], [(0.0, (0.35, 0.34, 0.33, 1)), (0.012, (1, 1, 1, 1))])
+    zona = rampa(nt, ruido(nt, coord, 0.05, 3), [(0.55, (0, 0, 0, 1)), (0.62, (1, 1, 1, 1))])
+    col = mezclar(nt, col, mezclar(nt, col, grieta, 1.0, 'MULTIPLY'), zona)
     nt.links.new(col, bsdf.inputs['Base Color'])
     rug = nt.nodes.new('ShaderNodeMath'); rug.operation = 'MULTIPLY_ADD'; rug.inputs[1].default_value = 0.25; rug.inputs[2].default_value = 0.72
     nt.links.new(t['rug'], rug.inputs[0]); nt.links.new(rug.outputs[0], bsdf.inputs['Roughness'])
@@ -754,6 +772,12 @@ def aeronaves_glb():
                 cam = bpy.data.objects.new('Cam_hercules', cd); escena.collection.objects.link(cam)
                 cam.location = p + d * 22 + lado * 30 + Vector((0, 0, 1.7))   # antes de la fila de helicópteros
                 cam.rotation_euler = (p + Vector((0, 0, 4.5)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
+            if k == 0 and nombre.startswith('Diamond'):
+                # tres cuartos desde adelante, a la altura de una persona, con la tribuna de fondo
+                cd = bpy.data.cameras.new('da40'); cd.sensor_fit = 'VERTICAL'; cd.angle_y = math.radians(36); cd.clip_end = 60000
+                cam = bpy.data.objects.new('Cam_da40', cd); escena.collection.objects.link(cam)
+                cam.location = p + Vector((-13.0, 6.5, 1.6))
+                cam.rotation_euler = (p + Vector((0, 0, 0.9)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
 
 
 def camara_panoramica():

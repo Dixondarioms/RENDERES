@@ -2,6 +2,7 @@
 blender/feria.blend
 *.blend1
 blender/_prueba_cielo.exr
+blender/_cielo_iluminacion.exr
 
 # Imágenes generadas (se rehacen con Armar_escena.bat y Renderizar.bat)
 blender/renders/
