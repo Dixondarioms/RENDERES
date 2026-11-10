@@ -21,10 +21,11 @@ Medidas locales: origen en el centro del cuerpo del techo rojo, a nivel del piso
 mira a -Y; visto desde la vía, -X es la izquierda (marquesina de entrada) y +X la derecha.
 """
 import math
+import os
 
 import bmesh
 import bpy
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 SAAG = dict(
     L=33.0, W=15.0,               # planta del galpón del techo rojo (m): referencia de posición, aquí no se arma
@@ -195,7 +196,9 @@ def construir_saag(nombre='saag_anexo', coleccion=None):
     caja(0, yb + 0.15, (z_m + d['muro_atras']) / 2, L + 2 * v + 0.2, 0.3, d['muro_atras'] - z_m, 7)
     for k in range(4):                                                         # aires en el techo
         caja(x0 + 5 + k * 6.5, yb - 2.2, ha + 0.6, 1.0, 0.8, 0.8, 15)
-    cilindro(L / 2 - 3.5, yb - 2.0, ha + 1.2, 0.9, 1.7, 16)                    # tanque de agua en su base
+    tanque_techo = (L / 2 - 3.5, yb - 2.0, ha + 1.2)                          # tanque de agua sobre su base
+    if not hay_modelo_tanque():
+        cilindro(*tanque_techo, 0.9, 1.7, 16)
     caja(L / 2 - 3.5, yb - 2.0, ha + 0.7, 2.0, 2.0, 1.0, 13)
     for s in (-0.2, 0.2):                                                      # antena
         caja(L / 2 - 1.0 + s, yb - 0.5, d['muro_atras'] + 1.4, 0.04, 0.04, 2.8, 13)
@@ -286,7 +289,48 @@ def construir_saag(nombre='saag_anexo', coleccion=None):
     uv_metros(me)
     ob = bpy.data.objects.new(nombre, me)
     (coleccion or bpy.context.scene.collection).objects.link(ob)
+    if hay_modelo_tanque():                       # tanque real (modelo pintado de azul), hijo del edificio
+        t = bpy.data.objects.new('Tanque de agua techo', None)
+        t.instance_type = 'COLLECTION'; t.instance_collection = prototipo_tanque()
+        t.location = tanque_techo; t.scale = (escala_tanque(),) * 3
+        (coleccion or bpy.context.scene.collection).objects.link(t); t.parent = ob
     return ob
+
+
+# ----------------------------------------------------------------------------- tanque de agua (modelo real)
+MODELO_TANQUE = ('assets', 'tanque', 'tanque_agua_azul.glb')
+DIAMETRO_TANQUE = 1.8                             # m: el del techo (como el de las fotos, de unos 2000 L)
+
+
+def hay_modelo_tanque():
+    return os.path.exists(os.path.join(RAIZ, *MODELO_TANQUE))
+
+
+def prototipo_tanque():
+    """Importa el tanque una vez y lo deja como colección oculta, con el origen en el centro de la base."""
+    c = bpy.data.collections.get('Prototipo tanque')
+    if c:
+        return c
+    c = bpy.data.collections.new('Prototipo tanque'); bpy.context.scene.collection.children.link(c)
+    antes = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=os.path.join(RAIZ, *MODELO_TANQUE))
+    nuevos = [o for o in bpy.data.objects if o not in antes]
+    for o in nuevos:
+        for cc in list(o.users_collection):
+            cc.objects.unlink(o)
+        c.objects.link(o)
+    bpy.context.view_layer.update()
+    pts = [o.matrix_world @ Vector(v) for o in nuevos if o.type == 'MESH' for v in o.bound_box]
+    mn = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    mx = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    c.instance_offset = ((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mn.z)
+    c['ancho'] = max(mx.x - mn.x, mx.y - mn.y)
+    bpy.context.view_layer.layer_collection.children[c.name].exclude = True
+    return c
+
+
+def escala_tanque():
+    return DIAMETRO_TANQUE / max(0.01, prototipo_tanque()['ancho'])
 
 
 def construir_entorno_saag(nombre='saag_entorno', coleccion=None):

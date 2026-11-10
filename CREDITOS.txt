@@ -21,3 +21,7 @@ Recursos usados en el render (todos gratuitos y de uso libre)
   repinta con pixelado verde y el capitán se sienta por código.
 - Plantas ornamentales de los stands del SAAG: "Potted Plant 01", "Pachira Aquatica 01" y "Anthurium Botany 01" de Poly Haven
   (polyhaven.com), licencia CC0 (assets/plantas).
+- Tanque de agua del techo del SAAG: "Caixa D'água Water Tank" de evandgo (sketchfab.com/evandgo) en Sketchfab,
+  licencia CC-BY 4.0 (exige mencionar al autor); repintado de azul (assets/tanque/tanque_agua_azul.glb).
+- Extractores del hangar del SAAG: ventilador de 120 mm (archivo STEP de FreeCAD suministrado por el usuario),
+  convertido a assets/extractor/ventilador_120mm.glb y agrandado; verificar autor y licencia antes de publicar.

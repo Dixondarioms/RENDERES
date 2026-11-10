@@ -19,6 +19,7 @@ ruido, mezclar). Mismas coordenadas locales que edificio_saag.py: el galpón ocu
 edificio blanco) hasta +W/2 (frente abierto hacia la plataforma).
 """
 import math
+import os
 
 import bmesh
 import bpy
@@ -375,9 +376,14 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
             caja(xw + s * 0.15, y + 0.4, (h_alero - 0.2) / 2, 0.11, 0.11, h_alero - 0.2, tubo)
 
     # extractores (cuadro negro con aspas) en la franja de bloque calado
+    extractores = []                            # (posición, giro) para el modelo real del ventilador
+
     def extractor(xw, s, y):
         xi = xw - s * (e + 0.03)
         zc = sum(g['calado']) / 2
+        if hay_modelo_extractor():
+            extractores.append(((xw - s * e, y, zc), 0.0 if s > 0 else math.pi))
+            return
         caja(xi, y, zc, 0.12, 0.85, 0.85, negro)
         cilindro((xi - s * 0.065, y, zc), 0.38, 0.02, gris_canal, eje='X', lados=24)
         cilindro((xi - s * 0.08, y, zc), 0.35, 0.02, negro, eje='X', lados=24)
@@ -533,4 +539,46 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
     uv_metros(me)
     ob = bpy.data.objects.new(nombre, me)
     (coleccion or bpy.context.scene.collection).objects.link(ob)
+    if extractores:
+        proto = prototipo_extractor()
+        for k, (pos, giro) in enumerate(extractores):
+            ex = bpy.data.objects.new(f'Extractor {k + 1}', None)
+            ex.instance_type = 'COLLECTION'; ex.instance_collection = proto
+            ex.location = pos; ex.rotation_euler.z = giro; ex.scale = (ESCALA_EXTRACTOR,) * 3
+            (coleccion or bpy.context.scene.collection).objects.link(ex)
     return ob
+
+
+# ----------------------------------------------------------------------------- extractores (modelo del usuario)
+# Ventilador de 120 mm (STEP de FreeCAD que mandó el usuario, convertido a assets/extractor/ventilador_120mm.glb),
+# agrandado al tamaño de los extractores del hangar: marco cuadrado de unos 84 cm.
+MODELO_EXTRACTOR = ('assets', 'extractor', 'ventilador_120mm.glb')
+ESCALA_EXTRACTOR = 7.0
+
+
+def hay_modelo_extractor():
+    return os.path.exists(os.path.join(RAIZ, *MODELO_EXTRACTOR))
+
+
+def prototipo_extractor():
+    c = bpy.data.collections.get('Prototipo extractor')
+    if c:
+        return c
+    c = bpy.data.collections.new('Prototipo extractor'); bpy.context.scene.collection.children.link(c)
+    antes = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=os.path.join(RAIZ, *MODELO_EXTRACTOR))
+    nuevos = [o for o in bpy.data.objects if o not in antes]
+    m = bpy.data.materials.get('Extractor negro') or bpy.data.materials.new('Extractor negro')
+    m.use_nodes = True
+    b = m.node_tree.nodes['Principled BSDF']
+    b.inputs['Base Color'].default_value = (0.025, 0.025, 0.027, 1); b.inputs['Roughness'].default_value = 0.45
+    b.inputs['Metallic'].default_value = 0.3
+    for o in nuevos:
+        for cc in list(o.users_collection):
+            cc.objects.unlink(o)
+        c.objects.link(o)
+        if o.type == 'MESH':
+            o.data.materials.clear(); o.data.materials.append(m)
+    c.instance_offset = (0, 0, 0)                 # el modelo ya viene centrado
+    bpy.context.view_layer.layer_collection.children[c.name].exclude = True
+    return c
