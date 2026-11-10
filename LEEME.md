@@ -29,7 +29,6 @@ git clone https://github.com/Dixondarioms/RENDERES.git
 | `Actualizar_acto.bat` | Rehace solo el acto (tarima, toldo, autoridades y parada) dentro de `blender\feria.blend`, sin armar toda la escena (unos 3 min y poca memoria). |
 | `Recorrido.bat` | Video del recorrido por los 4 stands en 2K (2560 × 1440, 30 fps, 30 s): `blender\renders\recorrido_stands_2K.mp4`. Tarda varias horas (~25 s por cuadro en una RTX 5060); si se corta, se vuelve a correr y sigue donde quedó. |
 | `Edificio_SAAG.bat` | Escena aparte solo con el SAAG (unos 2 min y poca memoria): edificio blanco, lo que tiene al lado izquierdo y el hangar por dentro. Guarda `blender\edificio_saag.blend` y las vistas `via`, `entrada`, `izquierda`, `esquina`, `techo`, `hangar`, `hangar_centro`, `hangar_derecha`, `hangar_afuera` en `blender\renders\saag_<vista>.png`. Para alta calidad: `Edificio_SAAG.bat hangar --muestras 512 --escala 100`. |
-enders\saag_<vista>.png`. Para alta calidad: `Edificio_SAAG.bat via --muestras 512 --escala 100`. |
 
 Ejemplos de `Renderizar.bat` (en una ventana de comandos dentro de la carpeta):
 
