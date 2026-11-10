@@ -9,7 +9,8 @@ Solo las instalaciones, sin helicópteros, vehículos ni equipos:
     y cruces blancas por fuera.
   - Fondo: la cara de atrás del edificio blanco (ventanas, puerta de madera, ventanas altas, panel azul marino,
     tubería eléctrica, escalera con el cuartico debajo y escalera de gato).
-  - Lado izquierdo: canasta de baloncesto. Medio: extintores en la columna. Lado derecho: lavamanos de baldosa
+  - Visto desde la plataforma: a la izquierda (+X) la canasta de baloncesto; en el medio extintores en la columna;
+    a la derecha (-X) lavamanos de baldosa
     gris, ducha de emergencia y tablero eléctrico. Extintores en gabinete rojo en las dos paredes.
   - Frente hacia la plataforma: portones de malla colgados de una viga carril que sale a los lados (abiertos).
 
@@ -48,8 +49,12 @@ def mat_bloque():
     lad.inputs['Color1'].default_value = (0.86, 0.86, 0.84, 1); lad.inputs['Color2'].default_value = (0.83, 0.83, 0.81, 1)
     lad.inputs['Mortar'].default_value = (0.7, 0.7, 0.68, 1)
     nt.links.new(uv, lad.inputs['Vector'])
-    nt.links.new(lad.outputs['Color'], bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = 0.85
+    # suciedad que sube del piso (salpicaduras), chorreados bajo el bloque calado y oclusión en rincones
+    sep = nt.nodes.new('ShaderNodeSeparateXYZ'); nt.links.new(nt.nodes.new('ShaderNodeTexCoord').outputs['Object'], sep.inputs[0])
+    sucio = rampa(nt, sep.outputs['Z'], [(0.0, (0.62, 0.58, 0.52, 1)), (0.45, (0.93, 0.92, 0.9, 1)), (0.9, (1, 1, 1, 1))])
+    col = mezclar(nt, lad.outputs['Color'], sucio, 1.0, 'MULTIPLY')
+    nt.links.new(oclusion(nt, chorreado(nt, col, 0.16, 1.3), 0.6, 0.6), bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.88
     bump = nt.nodes.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.35; bump.inputs['Distance'].default_value = 0.005
     nt.links.new(lad.outputs['Fac'], bump.inputs['Height'])
     nt.links.new(bump.outputs['Normal'], bsdf.inputs['Normal'])
@@ -67,8 +72,11 @@ def mat_lamina_galpon():
     geo = nt.nodes.new('ShaderNodeNewGeometry')
     col = mezclar(nt, (0.45, 0.13, 0.08, 1), (0.6, 0.62, 0.63, 1), geo.outputs['Backfacing'])
     manchas = rampa(nt, ruido(nt, uv, 0.4, 6), [(0.4, (1, 1, 1, 1)), (0.75, (0.82, 0.8, 0.76, 1))])
-    nt.links.new(mezclar(nt, col, manchas, 1.0, 'MULTIPLY'), bsdf.inputs['Base Color'])
-    bsdf.inputs['Metallic'].default_value = 0.45; bsdf.inputs['Roughness'].default_value = 0.5
+    col = chorreado(nt, mezclar(nt, col, manchas, 1.0, 'MULTIPLY'), 0.2, 1.0, eje='X')   # chorreados en la pendiente
+    nt.links.new(oclusion(nt, col, 0.45, 0.8), bsdf.inputs['Base Color'])
+    rug = nt.nodes.new('ShaderNodeMapRange'); rug.inputs['To Min'].default_value = 0.38; rug.inputs['To Max'].default_value = 0.7
+    nt.links.new(ruido(nt, uv, 1.5, 4), rug.inputs['Value']); nt.links.new(rug.outputs['Result'], bsdf.inputs['Roughness'])
+    bsdf.inputs['Metallic'].default_value = 0.45
     onda = nt.nodes.new('ShaderNodeTexWave'); onda.wave_type = 'BANDS'; onda.bands_direction = 'Y'
     onda.inputs['Scale'].default_value = 1.6; onda.inputs['Distortion'].default_value = 0.0
     nt.links.new(uv, onda.inputs['Vector'])
@@ -125,6 +133,70 @@ def mat_vidrio_claro(nombre):
     return m
 
 
+def mat_acero_pintado():
+    """Acero pintado de blanco con polvo, manchas y oclusión en las uniones."""
+    m = bpy.data.materials.get('Acero blanco pintado')
+    if m:
+        return m
+    m = bpy.data.materials.new('Acero blanco pintado')
+    nt, bsdf, out = nodos(m); nt.links.new(bsdf.outputs[0], out.inputs[0])
+    tc = nt.nodes.new('ShaderNodeTexCoord').outputs['Object']
+    polvo = rampa(nt, ruido(nt, tc, 2.5, 8), [(0.4, (1, 1, 1, 1)), (0.72, (0.86, 0.84, 0.8, 1))])
+    col = mezclar(nt, (0.84, 0.84, 0.82, 1), polvo, 1.0, 'MULTIPLY')
+    nt.links.new(oclusion(nt, col, 0.5, 0.35), bsdf.inputs['Base Color'])
+    rug = nt.nodes.new('ShaderNodeMapRange'); rug.inputs['To Min'].default_value = 0.35; rug.inputs['To Max'].default_value = 0.6
+    nt.links.new(ruido(nt, tc, 6.0, 3), rug.inputs['Value']); nt.links.new(rug.outputs['Result'], bsdf.inputs['Roughness'])
+    bsdf.inputs['Metallic'].default_value = 0.15
+    return m
+
+
+def mat_pintura_gastada(nombre, color):
+    """Pintura de seguridad (rayado de las columnas) con desgaste y roces abajo, donde la tocan."""
+    m = bpy.data.materials.get(nombre)
+    if m:
+        return m
+    m = bpy.data.materials.new(nombre)
+    nt, bsdf, out = nodos(m); nt.links.new(bsdf.outputs[0], out.inputs[0])
+    tc = nt.nodes.new('ShaderNodeTexCoord').outputs['Object']
+    sep = nt.nodes.new('ShaderNodeSeparateXYZ'); nt.links.new(tc, sep.inputs[0])
+    gasto = rampa(nt, ruido(nt, tc, 9.0, 10), [(0.55, (0, 0, 0, 1)), (0.68, (1, 1, 1, 1))])
+    abajo = rampa(nt, sep.outputs['Z'], [(0.0, (1, 1, 1, 1)), (0.6, (0.25, 0.25, 0.25, 1))])
+    fac = mezclar(nt, gasto, abajo, 1.0, 'MULTIPLY')
+    col = mezclar(nt, color + (1,), (0.32, 0.31, 0.29, 1), fac)
+    nt.links.new(oclusion(nt, col, 0.45, 0.3), bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.5
+    return m
+
+
+def mat_piso_hangar():
+    """Piso de concreto del hangar: textura real, losas de 5 m con juntas, manchas de aceite (más brillantes) y
+    oclusión junto a paredes y objetos."""
+    m = bpy.data.materials.get('Piso hangar SAAG')
+    if m:
+        return m
+    m = bpy.data.materials.new('Piso hangar SAAG')
+    nt, bsdf, out = nodos(m); nt.links.new(bsdf.outputs[0], out.inputs[0])
+    tc = nt.nodes.new('ShaderNodeTexCoord').outputs['Object']
+    t = tex_pbr(nt, tc, 'piso_hangar', 2.5)
+    base = mezclar(nt, (0.56, 0.55, 0.53, 1), t['col'], 0.8, 'MULTIPLY')
+    losas = nt.nodes.new('ShaderNodeTexBrick'); losas.offset = 0.0; losas.squash = 1.0
+    losas.inputs['Scale'].default_value = 1.0; losas.inputs['Brick Width'].default_value = 5.0
+    losas.inputs['Row Height'].default_value = 5.0; losas.inputs['Mortar Size'].default_value = 0.012
+    losas.inputs['Color1'].default_value = (1, 1, 1, 1); losas.inputs['Color2'].default_value = (0.93, 0.93, 0.92, 1)
+    losas.inputs['Mortar'].default_value = (0.35, 0.35, 0.35, 1)
+    nt.links.new(tc, losas.inputs['Vector'])
+    base = mezclar(nt, base, losas.outputs['Color'], 1.0, 'MULTIPLY')
+    aceite = rampa(nt, ruido(nt, tc, 0.45, 7), [(0.6, (0, 0, 0, 1)), (0.7, (1, 1, 1, 1))])
+    gotas = rampa(nt, ruido(nt, tc, 3.0, 4), [(0.66, (0, 0, 0, 1)), (0.72, (0.8, 0.8, 0.8, 1))])
+    fac = mezclar(nt, aceite, gotas, 1.0, 'LIGHTEN')
+    col = mezclar(nt, base, (0.17, 0.16, 0.15, 1), fac)
+    nt.links.new(oclusion(nt, col, 0.55, 0.6), bsdf.inputs['Base Color'])
+    rug = mezclar(nt, t['rug'], (0.3, 0.3, 0.3, 1), fac)
+    gris = nt.nodes.new('ShaderNodeRGBToBW'); nt.links.new(rug, gris.inputs[0]); nt.links.new(gris.outputs[0], bsdf.inputs['Roughness'])
+    nt.links.new(t['normal'], bsdf.inputs['Normal'])
+    return m
+
+
 # ----------------------------------------------------------------------------- galpón
 def construir_galpon(nombre='saag_galpon', coleccion=None):
     d, g = SAAG, GALPON
@@ -147,14 +219,16 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
             M[clave] = len(lista); lista.append(crear())
         return M[clave]
 
-    acero = mat('acero', lambda: mat_simple('Acero blanco', (0.85, 0.85, 0.83), 0.5, 0.2))
+    acero = mat('acero', mat_acero_pintado)
+    piso = mat('piso', mat_piso_hangar)
     bloque = mat('bloque', mat_bloque)
     lamina = mat('lamina', mat_lamina_galpon)
     clara = mat('clara', mat_claraboya)
     gris_canal = mat('canal', lambda: mat_simple('Canal galvanizada', (0.45, 0.46, 0.47), 0.45, 0.8))
     tubo = mat('tubo', lambda: mat_simple('Tubo PVC', (0.78, 0.78, 0.76), 0.5))
-    amarillo = mat('amarillo', lambda: mat_simple('Pintura amarilla', (0.85, 0.6, 0.02), 0.5))
+    amarillo = mat('amarillo', lambda: mat_pintura_gastada('Pintura amarilla gastada', (0.85, 0.6, 0.02)))
     rojo = mat('rojo', lambda: mat_simple('Rojo extintor', (0.6, 0.02, 0.02), 0.4))
+    rojo_rayado = mat('rojo_rayado', lambda: mat_pintura_gastada('Pintura roja gastada', (0.55, 0.02, 0.02)))
     negro = mat('negro', lambda: mat_simple('Pintura negra', (0.03, 0.03, 0.03), 0.5))
     pared_fondo = mat('fondo', lambda: mat_pintura(d['muro']))
     vidrio = mat('vidrio', lambda: mat_simple('Vidrio ventana', (0.02, 0.03, 0.035), rug=0.05, metal=0.2))
@@ -201,6 +275,9 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
         for f in {f for v in r['verts'] for f in v.link_faces}:
             f.material_index = i
 
+    # ================================================= piso de concreto del hangar
+    caja(0, 0, 0.02, L - 0.4, W - 0.05, 0.02, piso)
+
     # ================================================= techo: lámina por paños y claraboyas
     voladizo_lado, voladizo_frente = 0.45, 0.6
     for n, c in enumerate(naves):
@@ -245,7 +322,7 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
                 viga((x, y, zc - 1.0), (xb, y, z_techo(xb) - hv * 0.9), 0.15, 0.2, acero)
         # rayado de la columna del medio: amarillo abajo y franja roja
         caja(0, y, 0.95, 0.32, 0.32, 1.9, amarillo)
-        caja(0, y, 2.0, 0.32, 0.32, 0.2, rojo)
+        caja(0, y, 2.0, 0.32, 0.32, 0.2, rojo_rayado)
     # correas a lo largo (de atrás hacia el frente) y cruces de cable en el techo
     for c in naves:
         for k in range(-7, 8):
@@ -354,61 +431,62 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
     for dx in (-0.22, 0.22):
         caja(xL + 3.9 + dx, yp + 0.25, 4.8, 0.04, 0.04, 3.7, negro)
 
-    # ================================================= lado izquierdo: canasta de baloncesto y extintor
-    xi = xL + e
+    # Lados vistos desde la plataforma (mirando hacia el edificio blanco): la izquierda es +X y la derecha -X.
+    # ================================================= canasta de baloncesto (pared de +X) y extintores
+    xi, sd = xR - e, -1                         # cara de adentro de la pared y hacia dónde sale lo que se cuelga
     yc_ = 2.5
-    viga((xi + 0.05, yc_, 2.2), (xi + 1.45, yc_, 3.9), 0.16, 0.16, negro)            # brazo diagonal
-    viga((xi + 0.95, yc_, 3.3), (xi + 1.65, yc_, 3.3), 0.1, 0.1, negro)              # brazo al tablero
-    caja(xi + 1.68, yc_, 3.42, 0.03, 1.8, 1.05, acrilico)                             # tablero de acrílico
+    viga((xi + sd * 0.05, yc_, 2.2), (xi + sd * 1.45, yc_, 3.9), 0.16, 0.16, negro)            # brazo diagonal
+    viga((xi + sd * 0.95, yc_, 3.3), (xi + sd * 1.65, yc_, 3.3), 0.1, 0.1, negro)              # brazo al tablero
+    caja(xi + sd * 1.68, yc_, 3.42, 0.03, 1.8, 1.05, acrilico)                                  # tablero de acrílico
     for (sy, sz, dy, dz) in ((1.84, 0.04, 0, 0.525), (1.84, 0.04, 0, -0.525), (0.04, 1.05, 0.9, 0), (0.04, 1.05, -0.9, 0)):
-        caja(xi + 1.68, yc_ + dy, 3.42 + dz, 0.05, sy, sz, marco)
-    caja(xi + 1.72, yc_, 3.15, 0.04, 0.59, 0.45, marco)                               # recuadro blanco
-    aro_c = Vector((xi + 1.7 + 0.15 + 0.23, yc_, 3.05))
-    for k in range(16):                                                               # aro y red
+        caja(xi + sd * 1.68, yc_ + dy, 3.42 + dz, 0.05, sy, sz, marco)
+    caja(xi + sd * 1.72, yc_, 3.15, 0.04, 0.59, 0.45, marco)                                    # recuadro blanco
+    aro_c = Vector((xi + sd * (1.7 + 0.15 + 0.23), yc_, 3.05))
+    for k in range(16):                                                                         # aro y red
         a1, a2 = k * 2 * math.pi / 16, (k + 1) * 2 * math.pi / 16
         p1 = aro_c + Vector((0.23 * math.cos(a1), 0.23 * math.sin(a1), 0))
         p2 = aro_c + Vector((0.23 * math.cos(a2), 0.23 * math.sin(a2), 0))
         viga(p1, p2, 0.018, 0.018, naranja)
         viga(p1, aro_c + Vector((0.14 * math.cos(a1 + 0.4), 0.14 * math.sin(a1 + 0.4), -0.42)), 0.008, 0.008, red)
-    caja(xi + 1.78, yc_, 3.08, 0.15, 0.2, 0.08, naranja)
+    caja(xi + sd * 1.78, yc_, 3.08, 0.15, 0.2, 0.08, naranja)
 
     def gabinete(x, y, s):
         """Gabinete rojo con extintor y letrero, en la pared x (s: hacia dónde mira)."""
         caja(x + s * 0.06, y, 1.35, 0.1, 0.45, 0.75, rojo)
         cilindro((x + s * 0.13, y, 1.3), 0.09, 0.5, rojo)
         caja(x + s * 0.02, y, 2.0, 0.02, 0.28, 0.32, letrero_rojo)
-    gabinete(xi, 5.2, 1)
-    gabinete(xR - e, -1.0, -1)
+    gabinete(xR - e, 5.2, -1)
+    gabinete(xL + e, -1.0, 1)
 
     # ================================================= medio: extintores colgados en la columna
     for s in (-1, 1):
         cilindro((s * 0.27, 2.5, 0.75), 0.1, 0.62, rojo)
         cilindro((s * 0.27, 2.5, 1.12), 0.03, 0.12, negro)
 
-    # ================================================= lado derecho: lavamanos, ducha de emergencia y tablero
-    xd = xR - e
-    yl = -4.0                                                                         # lavamanos de baldosa gris
-    caja(xd - 0.33, yl, 0.45, 0.66, 2.0, 0.9, gris_baldosa)
+    # ================================================= lavamanos, ducha de emergencia y tablero (pared de -X)
+    xd, sl = xL + e, 1
+    yl = -3.6                                                                        # lavamanos de baldosa gris
+    caja(xd + sl * 0.33, yl, 0.45, 0.66, 2.0, 0.9, gris_baldosa)
     for fila in range(2):
         for col in range(3):
-            caja(xd - 0.67, yl - 0.66 + col * 0.66, 0.22 + fila * 0.4, 0.04, 0.55, 0.32, negro)
-    caja(xd - 0.33, yl, 0.92, 0.7, 2.05, 0.05, gris_baldosa)
-    caja(xd - 0.02, yl, 1.2, 0.04, 2.05, 0.6, gris_baldosa)
-    caja(xd - 0.33, yl + 0.4, 0.93, 0.42, 0.5, 0.04, loza)
-    cilindro((xd - 0.12, yl + 0.4, 1.05), 0.02, 0.22, marco)
-    yd = 2.6                                                                          # ducha de emergencia
-    caja(xd - 0.02, yd, 1.4, 0.04, 2.0, 2.8, gris_baldosa)
-    caja(xd - 0.5, yd, 0.06, 0.95, 0.95, 0.12, concreto)
-    cilindro((xd - 0.15, yd + 0.6, 1.25), 0.03, 2.5, verde)
-    viga((xd - 0.15, yd + 0.6, 2.45), (xd - 0.15, yd, 2.45), 0.05, 0.05, verde)
-    cilindro((xd - 0.15, yd, 2.3), 0.04, 0.18, verde, r2=0.15)
-    caja(xd - 0.35, yd - 0.2, 1.95, 0.02, 0.02, 0.6, verde)                           # tirador con triángulo
-    viga((xd - 0.35, yd - 0.32, 1.62), (xd - 0.35, yd - 0.08, 1.62), 0.02, 0.02, verde)
-    cilindro((xd - 0.35, yd + 0.6, 1.0), 0.14, 0.08, verde)                           # lavaojos
-    caja(xd - 0.02, yd + 0.6, 2.75, 0.03, 0.32, 0.26, letrero_verde)
-    for k, y in enumerate((-6.3, -5.6)):                                              # tableros eléctricos
-        caja(xd - 0.12, y, 1.6, 0.2, 0.55, 0.8 - k * 0.2, tablero)
-    caja(xd - 0.05, -5.95, 3.0, 0.05, 0.05, 2.2, tubo)
+            caja(xd + sl * 0.67, yl - 0.66 + col * 0.66, 0.22 + fila * 0.4, 0.04, 0.55, 0.32, negro)
+    caja(xd + sl * 0.33, yl, 0.92, 0.7, 2.05, 0.05, gris_baldosa)
+    caja(xd + sl * 0.02, yl, 1.2, 0.04, 2.05, 0.6, gris_baldosa)
+    caja(xd + sl * 0.33, yl + 0.4, 0.93, 0.42, 0.5, 0.04, loza)
+    cilindro((xd + sl * 0.12, yl + 0.4, 1.05), 0.02, 0.22, marco)
+    yd = 2.6                                                                         # ducha de emergencia
+    caja(xd + sl * 0.02, yd, 1.4, 0.04, 2.0, 2.8, gris_baldosa)
+    caja(xd + sl * 0.5, yd, 0.06, 0.95, 0.95, 0.12, concreto)
+    cilindro((xd + sl * 0.15, yd + 0.6, 1.25), 0.03, 2.5, verde)
+    viga((xd + sl * 0.15, yd + 0.6, 2.45), (xd + sl * 0.15, yd, 2.45), 0.05, 0.05, verde)
+    cilindro((xd + sl * 0.15, yd, 2.3), 0.04, 0.18, verde, r2=0.15)
+    caja(xd + sl * 0.35, yd - 0.2, 1.95, 0.02, 0.02, 0.6, verde)                     # tirador con triángulo
+    viga((xd + sl * 0.35, yd - 0.32, 1.62), (xd + sl * 0.35, yd - 0.08, 1.62), 0.02, 0.02, verde)
+    cilindro((xd + sl * 0.35, yd + 0.6, 1.0), 0.14, 0.08, verde)                     # lavaojos
+    caja(xd + sl * 0.02, yd + 0.6, 2.75, 0.03, 0.32, 0.26, letrero_verde)
+    for k, y in enumerate((-1.95, -1.3)):                                            # tableros eléctricos
+        caja(xd + sl * 0.12, y, 1.6, 0.2, 0.55, 0.8 - k * 0.2, tablero)
+    caja(xd + sl * 0.05, -1.62, 3.0, 0.05, 0.05, 2.2, tubo)
 
     # ================================================= frente: viga carril con portones de malla
     largo_carril = L + 2 * 12.0

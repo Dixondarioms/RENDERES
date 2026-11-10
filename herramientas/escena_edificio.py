@@ -7,7 +7,7 @@ Uso (desde la carpeta del proyecto):
 
 Guarda blender/edificio_saag.blend y las imágenes en blender/renders/saag_<vista>.png.
 Vistas: via (como las fotos desde la vía), entrada, izquierda, esquina, techo, y del hangar:
-hangar, hangar_centro, hangar_derecha, hangar_afuera, stands; y las de cada stand (stand_<clave>, frente_<clave>,
+hangar, hangar_centro, hangar_canasta, hangar_lavamanos, hangar_afuera, stands; y las de cada stand (stand_<clave>, frente_<clave>,
 lateral_<clave>, detalle_<clave>; clave = igla, juego, mecanismo, ultraligero). --sin-stands: el hangar vacío. Sin vistas, todas.
 Por defecto son imágenes rápidas (32 muestras al 50 %); para la final: --muestras 512 --escala 100.
 El mismo edificio (herramientas/edificio_saag.py) es el que usa el render principal.
@@ -65,10 +65,10 @@ construir_entorno_saag('saag_entorno', col)
 construir_galpon('saag_galpon', col)
 # stands de la AMB con su decoración: se arman con el código del render principal (realismo_blender.py),
 # cargado en un espacio aparte para que sus funciones no reemplacen las de esta escena
+ns = dict(globals())
+exec(open(os.path.join(RAIZ, 'herramientas', 'realismo_blender.py'), encoding='utf-8').read(), ns)
 if '--sin-stands' not in ARGS:
-    ns = dict(globals())
-    for archivo in ('realismo_blender.py', 'stands_saag.py'):
-        exec(open(os.path.join(RAIZ, 'herramientas', archivo), encoding='utf-8').read(), ns)
+    exec(open(os.path.join(RAIZ, 'herramientas', 'stands_saag.py'), encoding='utf-8').read(), ns)
     col_st = bpy.data.collections.new('Stands AMB SAAG'); escena.collection.children.link(col_st)
     ns['colocar_stands_saag'](col_st)
 
@@ -140,9 +140,11 @@ CAMARAS = {
     'izquierda': ((-30, -16, 2.0), (-16, -10, 3.5), 70),   # poste, planta y tanque
     'techo':   ((0, -55, 60), (0, -13, 2), 50),
     # hangar (galpón del techo rojo): +EV porque adentro hay mucha menos luz
-    'hangar':         ((-14.5, 7.0, 1.7), (3, -7, 3.6), 95, 2.5),     # desde la esquina izquierda, lado de la pista
-    'hangar_centro':  ((-3.5, 10.5, 1.7), (-1.5, -7.5, 3.8), 85, 2.3),
-    'hangar_derecha': ((5.0, 6.0, 1.7), (16.5, -1.5, 2.0), 85, 2.5),  # lavamanos y ducha de emergencia
+    # (visto desde la pista, la izquierda del hangar es +X y la derecha -X)
+    'hangar':           ((14.5, 7.0, 1.7), (-3, -7, 3.6), 95, 2.5),    # desde la esquina izquierda, lado de la pista
+    'hangar_centro':    ((3.5, 10.5, 1.7), (1.5, -7.5, 3.8), 85, 2.3),
+    'hangar_canasta':   ((8.25, 1.6, 1.6), (15.0, 2.5, 3.1), 75, 2.5),  # pared izquierda: canasta de baloncesto
+    'hangar_lavamanos': ((-6.0, 1.8, 2.2), (-16.5, -0.6, 1.4), 80, 2.5),  # pared derecha: lavamanos y ducha
     'hangar_afuera':  ((22, 42, 7), (0, 0, 3.5), 55, 0.0),            # desde la plataforma
     'stands':         ((0.0, 26, 4.5), (0, -2, 2.0), 70, 1.2),       # los 4 stands desde la plataforma
 }
@@ -171,6 +173,7 @@ escena.view_settings.view_transform = 'AgX'
 escena.view_settings.look = 'AgX - Medium High Contrast'
 escena.view_settings.exposure = exposicion
 escena['exposicion_base'] = exposicion
+ns['postproceso'](escena)        # composición de lente del render principal: brillo suave, aberración leve y viñeta
 os.makedirs(os.path.join(DIR_B, 'renders'), exist_ok=True)
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(DIR_B, 'edificio_saag.blend'))
 print('Guardado', os.path.join(DIR_B, 'edificio_saag.blend'))

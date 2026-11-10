@@ -51,6 +51,27 @@ SAAG = dict(
 )
 
 
+def oclusion(nt, col, fuerza=0.55, dist=0.5):
+    """Oscurece rincones, uniones y lo que queda debajo de los salientes (oclusión ambiental): da contacto y peso."""
+    ao = nt.nodes.new('ShaderNodeAmbientOcclusion'); ao.samples = 8
+    ao.inputs['Distance'].default_value = dist
+    oscuro = mezclar(nt, (1, 1, 1, 1), ao.outputs['AO'], fuerza)
+    return mezclar(nt, col, oscuro, 1.0, 'MULTIPLY')
+
+
+def chorreado(nt, col, fuerza=0.12, escala=1.0, eje='Z'):
+    """Chorreados de lluvia y polvo: manchas alargadas en la dirección 'eje' (Z en paredes, X en techos)."""
+    tc = nt.nodes.new('ShaderNodeTexCoord').outputs['Object']
+    mp = nt.nodes.new('ShaderNodeMapping')
+    largo = {'X': (0.25, 3.0, 3.0), 'Y': (3.0, 0.25, 3.0), 'Z': (3.0, 3.0, 0.25)}[eje]
+    mp.inputs['Scale'].default_value = tuple(v * escala for v in largo)
+    nt.links.new(tc, mp.inputs['Vector'])
+    n = nt.nodes.new('ShaderNodeTexNoise'); n.inputs['Scale'].default_value = 1.0; n.inputs['Detail'].default_value = 6
+    nt.links.new(mp.outputs['Vector'], n.inputs['Vector'])
+    r = rampa(nt, n.outputs['Fac'], [(0.45, (1, 1, 1, 1)), (0.75, (1 - fuerza, 1 - fuerza * 1.05, 1 - fuerza * 1.2, 1))])
+    return mezclar(nt, col, r, 1.0, 'MULTIPLY')
+
+
 def mat_piedra():
     """Piedra laja gris en hiladas irregulares (franja vertical, columnas y zócalo)."""
     m = bpy.data.materials.get('Piedra laja')
@@ -70,7 +91,7 @@ def mat_piedra():
     vet = nt.nodes.new('ShaderNodeTexNoise'); vet.inputs['Scale'].default_value = 9.0; vet.inputs['Detail'].default_value = 8
     nt.links.new(uv, vet.inputs['Vector'])
     col = mezclar(nt, lad.outputs['Color'], rampa(nt, vet.outputs['Fac'], [(0.35, (0.75, 0.75, 0.74, 1)), (0.7, (1.15, 1.13, 1.1, 1))]), 1.0, 'MULTIPLY')
-    nt.links.new(col, bsdf.inputs['Base Color'])
+    nt.links.new(oclusion(nt, chorreado(nt, col, 0.1)), bsdf.inputs['Base Color'])
     bsdf.inputs['Roughness'].default_value = 0.85
     bump = nt.nodes.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.6; bump.inputs['Distance'].default_value = 0.01
     alt = mezclar(nt, (1, 1, 1, 1), vet.outputs['Fac'], 0.4, 'MULTIPLY')
@@ -96,7 +117,7 @@ def mat_pintura(color):
     sucio = rampa(nt, sep.outputs['Z'], [(0.0, (0.72, 0.68, 0.62, 1)), (0.7, (1, 1, 1, 1))])
     manchas = rampa(nt, ruido(nt, obj, 0.35, 6), [(0.4, (1, 1, 1, 1)), (0.75, (0.93, 0.93, 0.91, 1))])
     col = mezclar(nt, mezclar(nt, color + (1,), sucio, 1.0, 'MULTIPLY'), manchas, 1.0, 'MULTIPLY')
-    nt.links.new(col, bsdf.inputs['Base Color'])
+    nt.links.new(oclusion(nt, chorreado(nt, col, 0.1)), bsdf.inputs['Base Color'])
     bsdf.inputs['Roughness'].default_value = 0.88
     bump = nt.nodes.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.08; bump.inputs['Distance'].default_value = 0.002
     nt.links.new(ruido(nt, obj, 40.0, 4), bump.inputs['Height'])
@@ -125,7 +146,7 @@ def mat_manchado():
     nt, bsdf, out = nodos(m); nt.links.new(bsdf.outputs[0], out.inputs[0])
     obj = nt.nodes.new('ShaderNodeTexCoord').outputs['Object']
     col = rampa(nt, ruido(nt, obj, 1.2, 10), [(0.3, (0.32, 0.32, 0.3, 1)), (0.55, (0.55, 0.55, 0.52, 1)), (0.75, (0.75, 0.75, 0.72, 1))])
-    nt.links.new(col, bsdf.inputs['Base Color'])
+    nt.links.new(oclusion(nt, chorreado(nt, col, 0.1)), bsdf.inputs['Base Color'])
     bsdf.inputs['Roughness'].default_value = 0.92
     return m
 
