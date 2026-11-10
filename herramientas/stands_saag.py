@@ -92,6 +92,53 @@ def colocar_stands_saag(col):
         if o.type == 'CAMERA' and o.name.startswith(('Cam_stand_', 'Cam_frente_', 'Cam_lateral_', 'Cam_detalle_')):
             o['exposicion'] = STANDS_SAAG['ev_camaras']
     decoracion(col)
+    camara_recorrido_saag()
+
+
+# ----------------------------------------------------------------------------- video del recorrido por los stands
+RECORRIDO_SAAG_FPS = 24
+# (segundo, posición de la cámara, punto al que mira). Entra desde la plataforma por la alfombra de la nave derecha
+# (Igla-S y disparo automatizado), cruza entre las columnas del medio a la nave izquierda (Cóndor y ULV) y sale
+# hacia atrás para la vista general con el letrero. Las posiciones evitan columnas, tótems, plantas y materos.
+RECORRIDO_SAAG = [
+    (0.0, (0.0, 24.0, 5.0), (0.0, 0.0, 2.6)),
+    (4.0, (8.25, 12.0, 2.2), (8.25, -2.0, 1.8)),
+    (8.0, (8.8, 3.0, 1.65), (11.6, -4.0, 1.4)),
+    (11.0, (7.6, 1.0, 1.65), (4.5, -4.0, 1.4)),
+    (14.5, (2.5, 0.6, 1.7), (-3.0, -2.0, 1.5)),
+    (17.5, (-5.0, 1.8, 1.65), (-4.2, -3.5, 1.4)),
+    (20.5, (-8.5, 1.5, 1.65), (-10.5, -3.0, 1.1)),
+    (23.5, (-8.25, 6.0, 2.6), (-6.0, -3.0, 1.2)),
+    (28.0, (0.0, 20.0, 5.5), (0.0, -1.0, 2.0)),
+]
+EV_AFUERA, EV_ADENTRO = 1.0, 2.5                  # exposición extra afuera y adentro del hangar
+
+
+def camara_recorrido_saag():
+    """Cámara animada 'Recorrido SAAG' (sin el prefijo Cam_: no entra en las vistas fijas), con la mira en un Empty
+    (restricción Track To). La exposición (más alta adentro del hangar) la anima recorrido_saag.py al renderizar,
+    para no tocar las vistas fijas."""
+    cd = bpy.data.cameras.new('Recorrido SAAG'); cd.sensor_fit = 'HORIZONTAL'; cd.lens = 18
+    cd.clip_start = 0.05; cd.clip_end = 3000
+    cam = bpy.data.objects.new('Recorrido SAAG', cd); escena.collection.objects.link(cam)
+    mira = bpy.data.objects.new('Recorrido SAAG mira', None); escena.collection.objects.link(mira)
+    tr = cam.constraints.new('TRACK_TO'); tr.target = mira; tr.track_axis = 'TRACK_NEGATIVE_Z'; tr.up_axis = 'UP_Y'
+    claves_ev = []
+    for seg, pos, apunta in RECORRIDO_SAAG:
+        f = 1 + round(seg * RECORRIDO_SAAG_FPS)
+        cam.location = pos; cam.keyframe_insert('location', frame=f)
+        mira.location = apunta; mira.keyframe_insert('location', frame=f)
+        adentro = -7.5 < pos[1] < 7.0
+        claves_ev.append((f, EV_ADENTRO if adentro else EV_AFUERA))
+    for ob in (cam, mira):
+        for fc in ob.animation_data.action.fcurves:
+            for kp in fc.keyframe_points:
+                kp.interpolation = 'BEZIER'; kp.handle_left_type = kp.handle_right_type = 'AUTO_CLAMPED'
+    cam['resolucion'] = (1920, 1080)
+    cam['ev_claves'] = [v for c in claves_ev for v in c]      # (cuadro, EV extra) en pares: recorrido_saag.py los anima
+    escena.render.fps = RECORRIDO_SAAG_FPS
+    escena.frame_start, escena.frame_end = 1, 1 + round(RECORRIDO_SAAG[-1][0] * RECORRIDO_SAAG_FPS)
+    print('Recorrido SAAG:', escena.frame_end, 'cuadros a', RECORRIDO_SAAG_FPS, 'cuadros por segundo')
 
 
 # ----------------------------------------------------------------------------- decoración

@@ -90,6 +90,9 @@ losa('Caminería', x_puerta - 0.9, x_puerta + 0.9, -40, fy - 3, 0.025, mat_simpl
 losa('Estacionamiento', -60, 60, -46, -40, 0.03, mat_asfalto())
 losa('Via', -150, 150, -54, -46, 0.03, mat_asfalto())
 losa('Plataforma', -60, 60, -W / 2, 60, 0.025, mat_concreto())
+# paisaje: grama realista, mangos y setos (solo en esta escena; el render principal tiene el suyo)
+exec(open(os.path.join(RAIZ, 'herramientas', 'entorno_escena_saag.py'), encoding='utf-8').read())
+paisaje_saag(ns)
 
 # ---------------------------------------------------------------- sol y cielo (igual que armar_blender.py)
 sol_dir = (Matrix.Rotation(-giro, 3, 'Z') @ a_blender(DATOS['sol'])).normalized()
