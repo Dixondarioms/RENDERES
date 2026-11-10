@@ -7,7 +7,7 @@ la plataforma:
     nave derecha:   disparo automatizado Igla-S (al medio) y simulador Igla-S (afuera)
 Decoración: alfombra roja en T por nave, tótems azul marino "AMB" a la entrada, letrero colgante
 "PROYECTOS TECNOLÓGICOS AMB" sobre cada nave, letrero principal
-"PROYECTOS TECNOLÓGICOS AMB" sobre la viga del frente y plantas ornamentales reales de Poly Haven (CC0):
+"PROYECTOS TECNOLÓGICOS AMB" colgado de la viga del frente y plantas ornamentales reales de Poly Haven (CC0):
 árbol del dinero (pachira) en matero negro, planta de hojas anchas en matero de barro y anturios en matero blanco.
 
 Se ejecuta en un espacio aparte donde ya se cargaron mejoras_blender.py, edificio_saag.py, galpon_saag.py y
@@ -30,7 +30,7 @@ STANDS_SAAG = dict(
     ],
     ev_camaras=3.0,               # exposición extra de las vistas de los stands (adentro hay menos luz)
     titulo='PROYECTOS TECNOLÓGICOS AMB',            # letreros colgantes de cada nave
-    letrero='PROYECTOS TECNOLÓGICOS AMB',           # letrero principal sobre la viga del frente
+    letrero='PROYECTOS TECNOLÓGICOS AMB',           # letrero principal colgado de la viga del frente
 )
 
 
@@ -178,15 +178,21 @@ def decoracion(col):
                     f.material_index = 1
                 ob = _objeto('Arbusto en matero', bm, [blanco_m, arbusto], col)
                 ob.location = (x, y, 0.03)
-    # letrero principal sobre la viga carril del frente, mirando a la plataforma
+    # letrero principal colgado de la viga carril del frente (debajo de la línea del techo), entre las dos naves y
+    # delante de la columna del medio, mirando a la plataforma
     yc = yF + 0.75                                            # viga carril de los portones (galpon_saag.py)
-    deco.caja('Letrero principal', (10.4, 0.14, 1.45), (0, yc + 0.02, 6.78), navy, bisel=0.006)
-    deco.caja('Marco letrero principal', (10.5, 0.1, 1.55), (0, yc - 0.02, 6.78), dorado, bisel=0.004)
-    deco.texto(STANDS_SAAG['letrero'], 0.62, (0, yc + 0.095, 6.95), '+Y', blanco, condensada)
-    deco.caja('Linea letrero principal', (7.0, 0.004, 0.02), (0, yc + 0.093, 6.5), dorado, bisel=0)
-    deco.texto(UNIDAD_LETRERO, 0.13, (0, yc + 0.095, 6.3), '+Y', dorado, negrita, espacio=1.3)
-    for x in (-4.0, 4.0):                                     # soportes sobre la viga
-        deco.caja('Soporte letrero', (0.12, 0.12, 0.2), (x, yc, 6.0), mat_simple('Acero blanco', (0.85, 0.85, 0.83), 0.5, 0.2))
+    ancho, alto, zt = 8.0, 1.1, 5.4                           # zt: borde de arriba = cara de abajo de la viga
+    zc_ = zt - alto / 2
+    yl = yc + 0.25                                            # delante del paral del medio de la viga
+    deco.caja('Marco letrero principal', (ancho + 0.1, 0.06, alto + 0.1), (0, yl - 0.07, zc_), dorado, bisel=0.003)
+    deco.caja('Letrero principal', (ancho, 0.1, alto), (0, yl, zc_), navy, bisel=0.005)
+    deco.texto(STANDS_SAAG['letrero'], 0.5, (0, yl + 0.055, zc_ + 0.14), '+Y', blanco, condensada)
+    deco.caja('Linea letrero principal', (5.6, 0.004, 0.016), (0, yl + 0.053, zc_ - 0.2), dorado, bisel=0)
+    deco.texto(UNIDAD_LETRERO, 0.1, (0, yl + 0.055, zc_ - 0.36), '+Y', dorado, negrita, espacio=1.3)
+    acero = mat_simple('Acero blanco', (0.85, 0.85, 0.83), 0.5, 0.2)
+    for x in (-3.2, 3.2):                                     # pletinas que lo sujetan a la viga
+        deco.caja('Pletina letrero', (0.08, 0.3, 0.06), (x, yc + 0.1, zt + 0.03), acero, bisel=0)
+        deco.caja('Pletina letrero', (0.08, 0.04, 0.3), (x, yl - 0.07, zt - 0.1), acero, bisel=0)
 
 
 # ----------------------------------------------------------------------------- plantas ornamentales reales

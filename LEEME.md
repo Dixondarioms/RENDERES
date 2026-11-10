@@ -107,7 +107,7 @@ a la altura de una persona) y `detalle_<stand>` (la exhibición de cerca), con `
     canasta de baloncesto, extintores, lavamanos, ducha de emergencia, escalera con el cuartico y portones de malla.
   - `herramientas\stands_saag.py`: los 4 stands de la AMB dentro del hangar (los mismos de `stands_amb()`, sin cambiar ese
     código), dos por nave contra el fondo: ULV y Cóndor a la izquierda, disparo automatizado e Igla-S a la derecha;
-    con alfombra roja en T, tótems AMB, letrero principal «PROYECTOS TECNOLÓGICOS AMB» sobre la viga del frente,
+    con alfombra roja en T, tótems AMB, letrero principal «PROYECTOS TECNOLÓGICOS AMB» colgado de la viga del frente,
     letreros colgantes en cada nave y plantas reales de Poly Haven (`assets\plantas`: pachira, planta en matero de barro, anturios).
     Vistas: `stands` (desde la plataforma) y las de cada stand (`frente_igla`, `detalle_ultraligero`, etc.).
     `Edificio_SAAG.bat --sin-stands` deja el hangar vacío.
