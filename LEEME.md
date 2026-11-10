@@ -112,7 +112,7 @@ a la altura de una persona) y `detalle_<stand>` (la exhibición de cerca), con `
     Vistas: `stands` (desde la plataforma) y las de cada stand (`frente_igla`, `detalle_ultraligero`, etc.).
     `Edificio_SAAG.bat --sin-stands` deja el hangar vacío.
   - Modelos reales: extractores del hangar (`assets\extractorentilador_120mm.glb`, `ESCALA_EXTRACTOR` en galpon_saag.py)
-    extintores (`assets\extintor\extintor.blend`, de TurboSquid) y tanque azul del techo (`assets	anque	anque_agua_azul.glb`, `DIAMETRO_TANQUE` en edificio_saag.py).
+    extintores (`assets\extintor\extintor.blend`, de TurboSquid) y tanque azul del techo (`assets\tanque\tanque_agua_azul.glb`, `DIAMETRO_TANQUE` en edificio_saag.py).
   - Se trabaja aparte con `Edificio_SAAG.bat` (`herramientas\escena_edificio.py`). El render principal ya usa el edificio
     blanco y su entorno; el hangar y sus stands todavía no (ahí sigue el galpón de la otra PC).
 - Siguen hechos a mano: DA42, SF-260 y helicópteros Enstrom.
