@@ -145,6 +145,7 @@ CAMARAS = {
     'hangar_centro':    ((3.5, 10.5, 1.7), (1.5, -7.5, 3.8), 85, 2.3),
     'hangar_canasta':   ((8.25, 1.6, 1.6), (15.0, 2.5, 3.1), 75, 2.5),  # pared izquierda: canasta de baloncesto
     'hangar_lavamanos': ((-6.0, 1.8, 2.2), (-16.5, -0.6, 1.4), 80, 2.5),  # pared derecha: lavamanos y ducha
+    'canasta':          ((11.0, 2.9, 2.6), (14.6, 2.5, 3.1), 50, 2.5),   # la canasta de cerca
     'extintores':       ((-2.4, 5.6, 1.6), (0.0, 2.5, 0.9), 45, 2.5),   # extintores de la columna del medio
     'hangar_afuera':  ((22, 42, 7), (0, 0, 3.5), 55, 0.0),            # desde la plataforma
     'stands':         ((0.0, 26, 4.5), (0, -2, 2.0), 70, 1.2),       # los 4 stands desde la plataforma

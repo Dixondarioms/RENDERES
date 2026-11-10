@@ -446,15 +446,20 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
     caja(xi + sd * 1.68, yc_, 3.42, 0.03, 1.8, 1.05, acrilico)                                  # tablero de acrílico
     for (sy, sz, dy, dz) in ((1.84, 0.04, 0, 0.525), (1.84, 0.04, 0, -0.525), (0.04, 1.05, 0.9, 0), (0.04, 1.05, -0.9, 0)):
         caja(xi + sd * 1.68, yc_ + dy, 3.42 + dz, 0.05, sy, sz, marco)
-    caja(xi + sd * 1.72, yc_, 3.15, 0.04, 0.59, 0.45, marco)                                    # recuadro blanco
-    aro_c = Vector((xi + sd * (1.7 + 0.15 + 0.23), yc_, 3.05))
-    for k in range(16):                                                                         # aro y red
-        a1, a2 = k * 2 * math.pi / 16, (k + 1) * 2 * math.pi / 16
-        p1 = aro_c + Vector((0.23 * math.cos(a1), 0.23 * math.sin(a1), 0))
-        p2 = aro_c + Vector((0.23 * math.cos(a2), 0.23 * math.sin(a2), 0))
-        viga(p1, p2, 0.018, 0.018, naranja)
-        viga(p1, aro_c + Vector((0.14 * math.cos(a1 + 0.4), 0.14 * math.sin(a1 + 0.4), -0.42)), 0.008, 0.008, red)
-    caja(xi + sd * 1.78, yc_, 3.08, 0.15, 0.2, 0.08, naranja)
+    for (sy, sz, dy, dz) in ((0.59, 0.05, 0, 0.2), (0.59, 0.05, 0, -0.2), (0.05, 0.45, 0.27, 0), (0.05, 0.45, -0.27, 0)):
+        caja(xi + sd * 1.7, yc_ + dy, 3.15 + dz, 0.035, sy, sz, marco)                         # recuadro blanco (solo el borde)
+    canasta = None
+    if hay_modelo_red():                                                                        # aro y red reales
+        canasta = ((xi + sd * 1.695, yc_, 3.05), math.pi / 2 if sd < 0 else -math.pi / 2)
+    else:
+        aro_c = Vector((xi + sd * (1.7 + 0.15 + 0.23), yc_, 3.05))
+        for k in range(16):                                                                     # aro y red
+            a1, a2 = k * 2 * math.pi / 16, (k + 1) * 2 * math.pi / 16
+            p1 = aro_c + Vector((0.23 * math.cos(a1), 0.23 * math.sin(a1), 0))
+            p2 = aro_c + Vector((0.23 * math.cos(a2), 0.23 * math.sin(a2), 0))
+            viga(p1, p2, 0.018, 0.018, naranja)
+            viga(p1, aro_c + Vector((0.14 * math.cos(a1 + 0.4), 0.14 * math.sin(a1 + 0.4), -0.42)), 0.008, 0.008, red)
+        caja(xi + sd * 1.78, yc_, 3.08, 0.15, 0.2, 0.08, naranja)
 
     extintores = []                             # (posición de la base, giro) para el modelo real del extintor
     modelo_ext = hay_modelo_extintor()
@@ -554,6 +559,12 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
     uv_metros(me)
     ob = bpy.data.objects.new(nombre, me)
     (coleccion or bpy.context.scene.collection).objects.link(ob)
+    if canasta:
+        proto_r = prototipo_red()
+        ob_r = bpy.data.objects.new('Aro y red', None)
+        ob_r.instance_type = 'COLLECTION'; ob_r.instance_collection = proto_r
+        ob_r.location = canasta[0]; ob_r.rotation_euler.z = canasta[1]; ob_r.scale = (proto_r['escala'],) * 3
+        (coleccion or bpy.context.scene.collection).objects.link(ob_r)
     if extintores:
         proto_e = prototipo_extintor()
         for k, (pos, giro) in enumerate(extintores):
@@ -569,6 +580,61 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
             ex.location = pos; ex.rotation_euler.z = giro; ex.scale = (ESCALA_EXTRACTOR,) * 3
             (coleccion or bpy.context.scene.collection).objects.link(ex)
     return ob
+
+
+# ----------------------------------------------------------------------------- aro y red (modelo de TurboSquid)
+# "Basketball net" (TurboSquid 624665, gratis, licencia estándar de TurboSquid): aro rojo con ganchos, red de tela
+# y soporte, en OBJ (assets/canasta/red_baloncesto.obj). Va montado en el tablero de la canasta (aro a 3,05 m).
+MODELO_RED = ('assets', 'canasta', 'red_baloncesto.obj')
+DIAMETRO_ARO = 0.48                               # m, por fuera (el reglamentario es 45 cm por dentro)
+
+
+def hay_modelo_red():
+    return os.path.exists(os.path.join(RAIZ, *MODELO_RED))
+
+
+def prototipo_red():
+    """Importa el OBJ una vez: origen en la cara del soporte que va contra el tablero, a la altura de la parte de
+    arriba del aro; el lado del tablero queda hacia -Y del modelo."""
+    c = bpy.data.collections.get('Prototipo red')
+    if c:
+        return c
+    c = bpy.data.collections.new('Prototipo red'); bpy.context.scene.collection.children.link(c)
+    antes = set(bpy.data.objects)
+    bpy.ops.wm.obj_import(filepath=os.path.join(RAIZ, *MODELO_RED))
+    nuevos = [o for o in bpy.data.objects if o not in antes]
+    aro = mat_simple('Aro rojo', (0.7, 0.06, 0.02), 0.35, 0.6)
+    tela = bpy.data.materials.get('Red de tela') or bpy.data.materials.new('Red de tela')
+    tela.use_nodes = True
+    b = tela.node_tree.nodes['Principled BSDF']
+    b.inputs['Base Color'].default_value = (0.85, 0.85, 0.83, 1); b.inputs['Roughness'].default_value = 0.85
+    b.inputs['Subsurface Weight'].default_value = 0.15
+    metal = mat_simple('Metal pulido', (0.6, 0.62, 0.64), 0.25, 1.0)
+    cambio = {'Metal_red': aro, 'Fabric___Gray': tela, 'Metal_Polished_Blue': metal}
+    xs, ys, zs = [], [], []
+    for o in nuevos:
+        for cc in list(o.users_collection):
+            cc.objects.unlink(o)
+        c.objects.link(o)
+        for sl in o.material_slots:
+            if sl.material:
+                sl.material = cambio.get(sl.material.name.split('.')[0], sl.material)
+        if o.name.startswith('Basketball'):                       # aro: lo que no es tela, para medir el diámetro
+            me = o.data
+            i_aro = [i for i, sl in enumerate(o.material_slots) if sl.material is aro]
+            vs = {v for p in me.polygons if p.material_index in i_aro for v in p.vertices}
+            pts = [o.matrix_world @ me.vertices[v].co for v in vs]
+            xs += [p.x for p in pts]; zs += [p.z for p in pts]
+        if o.name.startswith('holder'):
+            pts = [o.matrix_world @ v.co for v in o.data.vertices]
+            ys += [p.y for p in pts]
+        for pol in o.data.polygons:
+            pol.use_smooth = True
+    ancho = max(xs) - min(xs)
+    c.instance_offset = ((max(xs) + min(xs)) / 2, min(ys), max(zs))
+    c['escala'] = DIAMETRO_ARO / ancho
+    bpy.context.view_layer.layer_collection.children[c.name].exclude = True
+    return c
 
 
 # ----------------------------------------------------------------------------- extintores (modelo de TurboSquid)
