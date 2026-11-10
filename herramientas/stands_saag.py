@@ -6,12 +6,15 @@ la plataforma:
     nave izquierda: aeronave ultraligera ULV (afuera) y Cóndor (al medio)
     nave derecha:   disparo automatizado Igla-S (al medio) y simulador Igla-S (afuera)
 Decoración: alfombra roja en T por nave, tótems azul marino "AMB" a la entrada, letrero colgante
-"PROYECTOS TECNOLÓGICOS DE LA AMB" sobre cada nave, palmas en matero y bolas de arbusto en materos blancos.
+"PROYECTOS TECNOLÓGICOS AMB" sobre cada nave, letrero principal
+"PROYECTOS TECNOLÓGICOS AMB" sobre la viga del frente y plantas ornamentales reales de Poly Haven (CC0):
+árbol del dinero (pachira) en matero negro, planta de hojas anchas en matero de barro y anturios en matero blanco.
 
 Se ejecuta en un espacio aparte donde ya se cargaron mejoras_blender.py, edificio_saag.py, galpon_saag.py y
 realismo_blender.py (escena_edificio.py lo hace).
 """
 import math
+import os
 
 import bmesh
 import bpy
@@ -26,7 +29,8 @@ STANDS_SAAG = dict(
         (-8.6, -3.7, [('ultraligero', -10.5), ('juego', -4.2)]),
     ],
     ev_camaras=3.0,               # exposición extra de las vistas de los stands (adentro hay menos luz)
-    titulo='PROYECTOS TECNOLÓGICOS DE LA AMB',
+    titulo='PROYECTOS TECNOLÓGICOS AMB',            # letreros colgantes de cada nave
+    letrero='PROYECTOS TECNOLÓGICOS AMB',           # letrero principal sobre la viga del frente
 )
 
 
@@ -148,12 +152,24 @@ def decoracion(col):
             x = c + s * 3.0
             z_techo = GALPON['alero'] + (GALPON['cumbre'] - GALPON['alero']) * (1 - abs(x - c) / (L / 4))
             deco.tubo('Cable letrero', (x, yl, zl + 0.42), (x, yl, z_techo - 0.1), 0.006, cable)
-        # palmas en matero negro a la entrada y en las puntas del frente de los stands
-        for (x, y) in ((c - 3.1, yF - 1.0), (c + 3.1, yF - 1.0), (min(xs) - 2.6, y_stands + 0.9), (max(xs) + 2.6, y_stands + 0.9)):
-            palma(col, (x, y), negro, tierra, hoja)
-        # bolas de arbusto en materos blancos a lo largo del pasillo
-        for s in (-1, 1):
-            for y in (yF - 4.0, yF - 7.0):
+        # plantas ornamentales reales (Poly Haven, CC0); si faltan los modelos, palmas y arbustos hechos por código
+        plantas = cargar_plantas()
+        entrada = ((c - 3.1, yF - 1.0), (c + 3.1, yF - 1.0))
+        puntas = ((min(xs) - 2.6, y_stands + 0.9), (max(xs) + 2.6, y_stands + 0.9))
+        pasillo = [(c + s * 1.65, y) for s in (-1, 1) for y in (yF - 4.0, yF - 7.0)]
+        if plantas:
+            for k, (x, y) in enumerate(entrada):                 # árbol del dinero en matero negro alto
+                matero(col, (x, y), 0.3, 0.62, negro, tierra, redondo=True)
+                planta(col, plantas['pachira'], (x, y, 0.65), giro=1.3 + k * 2.1)
+            for k, (x, y) in enumerate(puntas):                  # planta de hojas anchas con su matero de barro
+                planta(col, plantas['matero_barro'], (x, y, 0.03), giro=0.7 + k * 1.9, escala=1.15)
+            for k, (x, y) in enumerate(pasillo):                 # anturios en materos blancos
+                matero(col, (x, y), 0.29, 0.5, blanco_m, tierra)
+                planta(col, plantas['anturio'], (x, y, 0.52), giro=k * 1.57, escala=0.85)
+        else:
+            for (x, y) in entrada + puntas:
+                palma(col, (x, y), negro, tierra, hoja)
+            for (x, y) in pasillo:
                 bm = bmesh.new()
                 caja_bm(bm, 0, 0, 0.25, 0.5, 0.5, 0.5, 0)
                 r = bmesh.ops.create_icosphere(bm, subdivisions=3, radius=0.34)
@@ -161,9 +177,83 @@ def decoracion(col):
                 for f in {f for v in r['verts'] for f in v.link_faces}:
                     f.material_index = 1
                 ob = _objeto('Arbusto en matero', bm, [blanco_m, arbusto], col)
-                ob.location = (c + s * 1.65, y, 0.03)
-                for p in ob.data.polygons:
-                    p.use_smooth = p.material_index == 1
+                ob.location = (x, y, 0.03)
+    # letrero principal sobre la viga carril del frente, mirando a la plataforma
+    yc = yF + 0.75                                            # viga carril de los portones (galpon_saag.py)
+    deco.caja('Letrero principal', (10.4, 0.14, 1.45), (0, yc + 0.02, 6.78), navy, bisel=0.006)
+    deco.caja('Marco letrero principal', (10.5, 0.1, 1.55), (0, yc - 0.02, 6.78), dorado, bisel=0.004)
+    deco.texto(STANDS_SAAG['letrero'], 0.62, (0, yc + 0.095, 6.95), '+Y', blanco, condensada)
+    deco.caja('Linea letrero principal', (7.0, 0.004, 0.02), (0, yc + 0.093, 6.5), dorado, bisel=0)
+    deco.texto(UNIDAD_LETRERO, 0.13, (0, yc + 0.095, 6.3), '+Y', dorado, negrita, espacio=1.3)
+    for x in (-4.0, 4.0):                                     # soportes sobre la viga
+        deco.caja('Soporte letrero', (0.12, 0.12, 0.2), (x, yc, 6.0), mat_simple('Acero blanco', (0.85, 0.85, 0.83), 0.5, 0.2))
+
+
+# ----------------------------------------------------------------------------- plantas ornamentales reales
+PLANTAS = {   # prototipo: (archivo en assets/plantas, objetos del modelo que forman la planta)
+    'matero_barro': ('potted_plant_01', ('potted_plant_01_leaves', 'potted_plant_01_pebbles', 'potted_plant_01_pot',
+                                         'potted_plant_01_stem')),
+    'pachira': ('pachira_aquatica_01', ('pachira_aquatica_01_bark_d', 'pachira_aquatica_01_leaves_d')),
+    'anturio': ('anthurium_botany_01', ('anthurium_botany_01_b',)),
+}
+
+
+def cargar_plantas():
+    """Importa los modelos una sola vez y deja cada planta como colección oculta (se pone con instancias)."""
+    if bpy.data.collections.get('Planta anturio'):
+        return {k: bpy.data.collections['Planta ' + k] for k in PLANTAS}
+    raiz = bpy.data.collections.new('Prototipos plantas'); escena.collection.children.link(raiz)
+    protos = {}
+    for clave, (archivo, nombres) in PLANTAS.items():
+        ruta = os.path.join(RAIZ, 'assets', 'plantas', archivo, archivo + '_2k.gltf')
+        if not os.path.exists(ruta):
+            print('Falta el modelo', ruta)
+            return None
+        antes = set(bpy.data.objects)
+        bpy.ops.import_scene.gltf(filepath=ruta)
+        nuevos = [o for o in bpy.data.objects if o not in antes]
+        c = bpy.data.collections.new('Planta ' + clave); raiz.children.link(c)
+        usar = [o for o in nuevos if o.name.split('.')[0] in nombres]
+        for o in nuevos:
+            for cc in list(o.users_collection):
+                cc.objects.unlink(o)
+            if o in usar:
+                c.objects.link(o)
+        for o in [o for o in nuevos if o not in usar]:
+            bpy.data.objects.remove(o, do_unlink=True)
+        bpy.context.view_layer.update()
+        pts = [o.matrix_world @ Vector(v) for o in usar if o.type == 'MESH' for v in o.bound_box]
+        c.instance_offset = (sum(p.x for p in pts) / len(pts), sum(p.y for p in pts) / len(pts), min(p.z for p in pts))
+        protos[clave] = c
+    bpy.context.view_layer.layer_collection.children[raiz.name].exclude = True
+    return protos
+
+
+def planta(col, proto, pos, giro=0.0, escala=1.0):
+    ob = bpy.data.objects.new('Planta ' + proto.name[7:], None)
+    ob.instance_type = 'COLLECTION'; ob.instance_collection = proto
+    ob.location = pos; ob.rotation_euler.z = giro; ob.scale = (escala,) * 3
+    col.objects.link(ob)
+    return ob
+
+
+def matero(col, pos, radio, alto, mat, mat_tierra, redondo=False):
+    """Matero moderno (cilindro un poco cónico o cubo) con la tierra arriba."""
+    bm = bmesh.new()
+    if redondo:
+        r = bmesh.ops.create_cone(bm, cap_ends=True, segments=32, radius1=radio * 0.8, radius2=radio, depth=alto)
+        bmesh.ops.translate(bm, vec=(0, 0, alto / 2), verts=r['verts'])
+    else:
+        caja_bm(bm, 0, 0, alto / 2, radio * 2, radio * 2, alto, 0)
+    r = bmesh.ops.create_cone(bm, cap_ends=True, segments=32, radius1=radio * 0.92, radius2=radio * 0.92, depth=0.02)
+    bmesh.ops.translate(bm, vec=(0, 0, alto - 0.03), verts=r['verts'])
+    for f in {f for v in r['verts'] for f in v.link_faces}:
+        f.material_index = 1
+    ob = _objeto('Matero', bm, [mat, mat_tierra], col)
+    ob.location = (pos[0], pos[1], 0.03)
+    for p in ob.data.polygons:
+        p.use_smooth = redondo and p.material_index == 0
+    return ob
 
 
 def palma(col, pos, mat_matero, mat_tierra, mat_hoja, n=9):
