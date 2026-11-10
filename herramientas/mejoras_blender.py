@@ -437,6 +437,15 @@ def mejorar_edificios():
         viejo = bpy.data.objects.get(d['id'])
         if viejo:
             borrar_jerarquia(viejo)
+        if d['id'] == 'saag_anexo':
+            # edificio blanco del SAAG hacia la vía: se trabaja aparte (Edificio_SAAG.bat) y aquí se usa el mismo.
+            # Se ubica respecto al cuerpo del techo rojo ('saag'), que sigue igual.
+            exec(open(os.path.join(RAIZ, 'herramientas', 'edificio_saag.py'), encoding='utf-8').read(), globals())
+            ref = next(e for e in EDIFICIOS if e['id'] == 'saag')
+            ob = construir_saag('saag_anexo', COL_EDIF)
+            ob.location = px(*ref['c'])
+            ob.rotation_euler = (0, 0, -math.radians(ref['ang']))
+            continue
         edificio(d['id'], d['c'], d['L'], d['W'], d['ang'], d['h'], d['techo'], d.get('cumbre', 0), d['muro'], d['color'],
                  rejas=d.get('rejas', False), franja_gris=d.get('franja', False))
     for i, (c, L, W, ang, h, techo, cumbre, muro, color) in enumerate(VECINOS):

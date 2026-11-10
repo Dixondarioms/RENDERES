@@ -14,3 +14,6 @@ __MACOSX/
 assets/aeronaves/tucano/texturas/UV.pdf
 __pycache__/
 *.tmp
+
+# Escenas aparte de un solo edificio (se rehacen con Edificio_SAAG.bat)
+blender/edificio_*.blend
