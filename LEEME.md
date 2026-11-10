@@ -105,8 +105,13 @@ a la altura de una persona) y `detalle_<stand>` (la exhibición de cerca), con `
   - `herramientas\galpon_saag.py`: el hangar (galpón del techo rojo), solo instalaciones: dos naves a dos aguas, columnas
     del medio con el rayado amarillo y rojo, claraboyas, lámparas, paredes de bloque con bloque calado y extractores,
     canasta de baloncesto, extintores, lavamanos, ducha de emergencia, escalera con el cuartico y portones de malla.
+  - `herramientas\stands_saag.py`: los 4 stands de la AMB dentro del hangar (los mismos de `stands_amb()`, sin cambiar ese
+    código), dos por nave contra el fondo: ULV y Cóndor a la izquierda, disparo automatizado e Igla-S a la derecha;
+    con alfombra roja en T, tótems AMB, letrero colgante «PROYECTOS TECNOLÓGICOS DE LA AMB», palmas y arbustos.
+    Vistas: `stands` (desde la plataforma) y las de cada stand (`frente_igla`, `detalle_ultraligero`, etc.).
+    `Edificio_SAAG.bat --sin-stands` deja el hangar vacío.
   - Se trabaja aparte con `Edificio_SAAG.bat` (`herramientas\escena_edificio.py`). El render principal ya usa el edificio
-    blanco y su entorno; el hangar todavía no (ahí sigue el galpón de los stands de la otra PC).
+    blanco y su entorno; el hangar y sus stands todavía no (ahí sigue el galpón de la otra PC).
 - Siguen hechos a mano: DA42, SF-260 y helicópteros Enstrom.
 - `herramientas\matricula_c130.py 4951` cambia el número de la cola del Hércules (después correr `Armar_escena.bat`).
 - `herramientas\mascara_tucano.py` regenera la máscara de pintura del Tucano.

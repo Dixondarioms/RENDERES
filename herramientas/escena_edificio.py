@@ -7,7 +7,8 @@ Uso (desde la carpeta del proyecto):
 
 Guarda blender/edificio_saag.blend y las imágenes en blender/renders/saag_<vista>.png.
 Vistas: via (como las fotos desde la vía), entrada, izquierda, esquina, techo, y del hangar:
-hangar, hangar_centro, hangar_derecha, hangar_afuera. Sin vistas, todas.
+hangar, hangar_centro, hangar_derecha, hangar_afuera, stands; y las de cada stand (stand_<clave>, frente_<clave>,
+lateral_<clave>, detalle_<clave>; clave = igla, juego, mecanismo, ultraligero). --sin-stands: el hangar vacío. Sin vistas, todas.
 Por defecto son imágenes rápidas (32 muestras al 50 %); para la final: --muestras 512 --escala 100.
 El mismo edificio (herramientas/edificio_saag.py) es el que usa el render principal.
 """
@@ -33,6 +34,8 @@ while i < len(ARGS):
         escala = int(ARGS[i + 1]); i += 2
     elif ARGS[i] == '--sin-render':
         renderizar = False; i += 1
+    elif ARGS[i] == '--sin-stands':
+        i += 1
     else:
         vistas.append(ARGS[i]); i += 1
 
@@ -60,6 +63,14 @@ col = bpy.data.collections.new('Edificio'); escena.collection.children.link(col)
 construir_saag('saag_anexo', col)
 construir_entorno_saag('saag_entorno', col)
 construir_galpon('saag_galpon', col)
+# stands de la AMB con su decoración: se arman con el código del render principal (realismo_blender.py),
+# cargado en un espacio aparte para que sus funciones no reemplacen las de esta escena
+if '--sin-stands' not in ARGS:
+    ns = dict(globals())
+    for archivo in ('realismo_blender.py', 'stands_saag.py'):
+        exec(open(os.path.join(RAIZ, 'herramientas', archivo), encoding='utf-8').read(), ns)
+    col_st = bpy.data.collections.new('Stands AMB SAAG'); escena.collection.children.link(col_st)
+    ns['colocar_stands_saag'](col_st)
 
 # ---------------------------------------------------------------- piso: grama, acera, caminería y la vía
 def losa(nombre, x0, x1, y0, y1, z, mat):
@@ -133,6 +144,7 @@ CAMARAS = {
     'hangar_centro':  ((-3.5, 10.5, 1.7), (-1.5, -7.5, 3.8), 85, 2.3),
     'hangar_derecha': ((5.0, 6.0, 1.7), (16.5, -1.5, 2.0), 85, 2.5),  # lavamanos y ducha de emergencia
     'hangar_afuera':  ((22, 42, 7), (0, 0, 3.5), 55, 0.0),            # desde la plataforma
+    'stands':         ((0.0, 26, 4.5), (0, -2, 2.0), 70, 1.2),       # los 4 stands desde la plataforma
 }
 for nombre, (pos, mira, fov, *ev) in CAMARAS.items():
     cd = bpy.data.cameras.new('Cam_' + nombre); cd.sensor_fit = 'HORIZONTAL'; cd.angle_x = math.radians(fov)
