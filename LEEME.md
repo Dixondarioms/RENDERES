@@ -28,7 +28,8 @@ git clone https://github.com/Dixondarioms/RENDERES.git
 | `Abrir_render.bat` | Abre el visor 3D en el navegador (versión web, más simple). |
 | `Actualizar_acto.bat` | Rehace solo el acto (tarima, toldo, autoridades y parada) dentro de `blender\feria.blend`, sin armar toda la escena (unos 3 min y poca memoria). |
 | `Recorrido.bat` | Video del recorrido por los 4 stands en 2K (2560 × 1440, 30 fps, 30 s): `blender\renders\recorrido_stands_2K.mp4`. Tarda varias horas (~25 s por cuadro en una RTX 5060); si se corta, se vuelve a correr y sigue donde quedó. |
-| `Edificio_SAAG.bat` | Escena aparte solo con el edificio blanco del SAAG (unos 40 s y poca memoria): `blender\edificio_saag.blend` y vistas `via`, `entrada`, `esquina`, `atras`, `techo` en `blenderenders\saag_<vista>.png`. Para alta calidad: `Edificio_SAAG.bat via --muestras 512 --escala 100`. |
+| `Edificio_SAAG.bat` | Escena aparte solo con el SAAG (unos 2 min y poca memoria): edificio blanco, lo que tiene al lado izquierdo y el hangar por dentro. Guarda `blender\edificio_saag.blend` y las vistas `via`, `entrada`, `izquierda`, `esquina`, `techo`, `hangar`, `hangar_centro`, `hangar_derecha`, `hangar_afuera` en `blender\renders\saag_<vista>.png`. Para alta calidad: `Edificio_SAAG.bat hangar --muestras 512 --escala 100`. |
+enders\saag_<vista>.png`. Para alta calidad: `Edificio_SAAG.bat via --muestras 512 --escala 100`. |
 
 Ejemplos de `Renderizar.bat` (en una ventana de comandos dentro de la carpeta):
 
@@ -97,11 +98,16 @@ a la altura de una persona) y `detalle_<stand>` (la exhibición de cerca), con `
   - Medidas, colores y ocupación de las sillas: `TARIMA`, `TOLDO`, `CAMO_VE`, `OCUPACION` al principio del archivo.
   - Vistas: `tribuna` (desde la tarima hacia la parada), `toldo` (la tarima desde el frente), `autoridades`
     (de cerca), `parada` (las agrupaciones desde arriba) y `formacion` (los soldados a la altura de una persona), en 2K.
-- `herramientas\edificio_saag.py` es el **edificio blanco del SAAG** hacia la vía (el que el plano llamaba `saag_anexo`),
-  hecho con las fotos desde la vía: dos plantas, pretil recto, franja y zócalo de piedra, marquesina con columnas de piedra,
-  puerta de vidrio verde, emblema amarillo, rejas blancas y reflectores. Medidas y posiciones en `SAAG` al principio del archivo.
-  Se trabaja aparte con `Edificio_SAAG.bat` (`herramientas\escena_edificio.py`) y el render principal usa el mismo.
-  El cuerpo del techo rojo (`saag`, el galpón de los stands) va detrás y no se toca ahí.
+- **SAAG** (con las fotos del 10-11-2026), medidas al principio de cada archivo:
+  - `herramientas\edificio_saag.py`: el edificio blanco hacia la vía (antes `saag_anexo`): losa con alero gris, dos franjas
+    grises, zócalo y franja de piedra laja, marquesina que sale de la esquina izquierda, puerta de vidrio con paños de reja,
+    emblema del SAAGBA, rejas blancas y reflectores LED. `construir_entorno_saag()` pone al lado izquierdo el poste con
+    transformadores, la planta eléctrica, el tanque de agua y el pulmón de aire.
+  - `herramientas\galpon_saag.py`: el hangar (galpón del techo rojo), solo instalaciones: dos naves a dos aguas, columnas
+    del medio con el rayado amarillo y rojo, claraboyas, lámparas, paredes de bloque con bloque calado y extractores,
+    canasta de baloncesto, extintores, lavamanos, ducha de emergencia, escalera con el cuartico y portones de malla.
+  - Se trabaja aparte con `Edificio_SAAG.bat` (`herramientas\escena_edificio.py`). El render principal ya usa el edificio
+    blanco y su entorno; el hangar todavía no (ahí sigue el galpón de los stands de la otra PC).
 - Siguen hechos a mano: DA42, SF-260 y helicópteros Enstrom.
 - `herramientas\matricula_c130.py 4951` cambia el número de la cola del Hércules (después correr `Armar_escena.bat`).
 - `herramientas\mascara_tucano.py` regenera la máscara de pintura del Tucano.

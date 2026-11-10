@@ -442,9 +442,9 @@ def mejorar_edificios():
             # Se ubica respecto al cuerpo del techo rojo ('saag'), que sigue igual.
             exec(open(os.path.join(RAIZ, 'herramientas', 'edificio_saag.py'), encoding='utf-8').read(), globals())
             ref = next(e for e in EDIFICIOS if e['id'] == 'saag')
-            ob = construir_saag('saag_anexo', COL_EDIF)
-            ob.location = px(*ref['c'])
-            ob.rotation_euler = (0, 0, -math.radians(ref['ang']))
+            for ob in (construir_saag('saag_anexo', COL_EDIF), construir_entorno_saag('saag_entorno', COL_EDIF)):
+                ob.location = px(*ref['c'])
+                ob.rotation_euler = (0, 0, -math.radians(ref['ang']))
             continue
         edificio(d['id'], d['c'], d['L'], d['W'], d['ang'], d['h'], d['techo'], d.get('cumbre', 0), d['muro'], d['color'],
                  rejas=d.get('rejas', False), franja_gris=d.get('franja', False))
