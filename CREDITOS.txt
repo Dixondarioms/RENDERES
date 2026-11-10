@@ -25,3 +25,5 @@ Recursos usados en el render (todos gratuitos y de uso libre)
   licencia CC-BY 4.0 (exige mencionar al autor); repintado de azul (assets/tanque/tanque_agua_azul.glb).
 - Extractores del hangar del SAAG: ventilador de 120 mm (archivo STEP de FreeCAD suministrado por el usuario),
   convertido a assets/extractor/ventilador_120mm.glb y agrandado; verificar autor y licencia antes de publicar.
+- Extintores del hangar del SAAG: "Fire Extinguisher 3D" de 3Domingas en TurboSquid (1968407), gratis, licencia
+  Royalty Free de TurboSquid (se puede usar en los renders; no se pueden redistribuir los archivos del modelo).

@@ -456,18 +456,33 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
         viga(p1, aro_c + Vector((0.14 * math.cos(a1 + 0.4), 0.14 * math.sin(a1 + 0.4), -0.42)), 0.008, 0.008, red)
     caja(xi + sd * 1.78, yc_, 3.08, 0.15, 0.2, 0.08, naranja)
 
+    extintores = []                             # (posición de la base, giro) para el modelo real del extintor
+    modelo_ext = hay_modelo_extintor()
+
     def gabinete(x, y, s):
-        """Gabinete rojo con extintor y letrero, en la pared x (s: hacia dónde mira)."""
-        caja(x + s * 0.06, y, 1.35, 0.1, 0.45, 0.75, rojo)
-        cilindro((x + s * 0.13, y, 1.3), 0.09, 0.5, rojo)
-        caja(x + s * 0.02, y, 2.0, 0.02, 0.28, 0.32, letrero_rojo)
+        """Gabinete rojo abierto con el extintor adentro y el letrero arriba, en la pared x (s: hacia dónde mira)."""
+        if modelo_ext:
+            caja(x + s * 0.01, y, 1.35, 0.02, 0.5, 0.8, rojo)                  # fondo
+            for dy in (-0.24, 0.24):
+                caja(x + s * 0.13, y + dy, 1.35, 0.26, 0.02, 0.8, rojo)        # lados
+            for dz in (-0.39, 0.39):
+                caja(x + s * 0.13, y, 1.35 + dz, 0.26, 0.5, 0.02, rojo)        # arriba y abajo
+            extintores.append(((x + s * 0.11, y, 0.98), math.pi / 2 if s > 0 else -math.pi / 2))
+        else:
+            caja(x + s * 0.06, y, 1.35, 0.1, 0.45, 0.75, rojo)
+            cilindro((x + s * 0.13, y, 1.3), 0.09, 0.5, rojo)
+        caja(x + s * 0.02, y, 2.05, 0.02, 0.28, 0.32, letrero_rojo)
     gabinete(xR - e, 5.2, -1)
     gabinete(xL + e, -1.0, 1)
 
     # ================================================= medio: extintores colgados en la columna
     for s in (-1, 1):
-        cilindro((s * 0.27, 2.5, 0.75), 0.1, 0.62, rojo)
-        cilindro((s * 0.27, 2.5, 1.12), 0.03, 0.12, negro)
+        if modelo_ext:
+            caja(s * 0.19, 2.5, 1.12, 0.06, 0.04, 0.12, negro)                 # gancho
+            extintores.append(((s * 0.26, 2.5, 0.5), math.pi / 2 if s > 0 else -math.pi / 2))
+        else:
+            cilindro((s * 0.27, 2.5, 0.75), 0.1, 0.62, rojo)
+            cilindro((s * 0.27, 2.5, 1.12), 0.03, 0.12, negro)
 
     # ================================================= lavamanos, ducha de emergencia y tablero (pared de -X)
     xd, sl = xL + e, 1
@@ -539,6 +554,13 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
     uv_metros(me)
     ob = bpy.data.objects.new(nombre, me)
     (coleccion or bpy.context.scene.collection).objects.link(ob)
+    if extintores:
+        proto_e = prototipo_extintor()
+        for k, (pos, giro) in enumerate(extintores):
+            ex = bpy.data.objects.new(f'Extintor {k + 1}', None)
+            ex.instance_type = 'COLLECTION'; ex.instance_collection = proto_e
+            ex.location = pos; ex.rotation_euler.z = giro
+            (coleccion or bpy.context.scene.collection).objects.link(ex)
     if extractores:
         proto = prototipo_extractor()
         for k, (pos, giro) in enumerate(extractores):
@@ -547,6 +569,29 @@ def construir_galpon(nombre='saag_galpon', coleccion=None):
             ex.location = pos; ex.rotation_euler.z = giro; ex.scale = (ESCALA_EXTRACTOR,) * 3
             (coleccion or bpy.context.scene.collection).objects.link(ex)
     return ob
+
+
+# ----------------------------------------------------------------------------- extintores (modelo de TurboSquid)
+# "Fire Extinguisher 3D" de 3Domingas (TurboSquid 1968407, gratis, licencia Royalty Free de TurboSquid), limpiado en
+# assets/extintor/extintor.blend: 60 cm de alto, base en el origen, materiales con sus texturas (assets/extintor/textures).
+MODELO_EXTINTOR = ('assets', 'extintor', 'extintor.blend')
+
+
+def hay_modelo_extintor():
+    return os.path.exists(os.path.join(RAIZ, *MODELO_EXTINTOR))
+
+
+def prototipo_extintor():
+    c = bpy.data.collections.get('Prototipo extintor')
+    if c:
+        return c
+    c = bpy.data.collections.new('Prototipo extintor'); bpy.context.scene.collection.children.link(c)
+    with bpy.data.libraries.load(os.path.join(RAIZ, *MODELO_EXTINTOR), link=False) as (desde, hacia):
+        hacia.objects = [n for n in desde.objects if n == 'Extintor']
+    for o in hacia.objects:
+        c.objects.link(o)
+    bpy.context.view_layer.layer_collection.children[c.name].exclude = True
+    return c
 
 
 # ----------------------------------------------------------------------------- extractores (modelo del usuario)
